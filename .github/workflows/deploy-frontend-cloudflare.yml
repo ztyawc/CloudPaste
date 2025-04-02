@@ -45,6 +45,7 @@ jobs:
         env:
           VITE_APP_ENV: production
           VITE_ENABLE_DEVTOOLS: false
+          # 构建时刻意不设置VITE_BACKEND_URL，使其变成空值，由Cloudflare Pages环境变量覆盖
 
       - name: Check if Pages project exists
         id: check-project
@@ -105,13 +106,14 @@ jobs:
           echo "🎉 CloudPaste 前端已成功部署到 Cloudflare Pages!"
           echo "===================================================="
           echo ""
-          echo "注意: 您需要在 Cloudflare Pages 控制面板中手动设置环境变量:"
+          echo "重要: 您必须在 Cloudflare Pages 控制面板中设置环境变量:"
           echo "- 登录 https://dash.cloudflare.com/"
           echo "- 进入 Pages > cloudpaste-frontend > Settings > Environment variables"
           echo "- 添加 VITE_BACKEND_URL = 您的后端Worker URL"
+          echo "- 确保添加后点击'保存'按钮并重新部署项目"
           echo ""
           echo "后续步骤："
-          echo "1. 访问您的 Cloudflare Pages URL"
+          echo "1. 设置环境变量后，访问您的 Cloudflare Pages URL"
           echo "2. 使用默认管理员账户登录 (admin/admin123)"
           echo "3. 立即修改默认管理员密码"
           echo "4. 在管理员面板中配置您的S3兼容存储"

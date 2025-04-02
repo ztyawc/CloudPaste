@@ -17,12 +17,15 @@ function getApiBaseUrl() {
     }
   }
 
-  // 其次使用环境变量
+  // 直接使用Vite的运行时环境变量（此方法在Cloudflare Pages中非常有效）
   const envUrl = import.meta.env.VITE_BACKEND_URL;
   if (envUrl) {
+    console.log("使用环境变量中的API地址:", envUrl);
     return envUrl;
   }
 
+  // 如果环境变量未设置，输出警告并使用默认值
+  console.warn("⚠️ 未找到环境变量VITE_BACKEND_URL，使用默认API地址。请确保在Cloudflare Pages设置了环境变量。");
   return DEFAULT_DEV_API_URL;
 }
 
@@ -54,6 +57,6 @@ export const getEnvironmentInfo = () => {
     mode: import.meta.env.MODE,
     isDevelopment: import.meta.env.DEV,
     isProduction: import.meta.env.PROD,
-    backendUrl: import.meta.env.VITE_BACKEND_URL,
+    backendUrl: import.meta.env.VITE_BACKEND_URL || "未设置",
   };
 };
