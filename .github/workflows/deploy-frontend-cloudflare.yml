@@ -101,12 +101,11 @@ jobs:
           if [ -n "$BACKEND_URL" ]; then
             echo "设置Cloudflare Pages环境变量..."
           
-            # 创建环境变量配置文件
-            cat > env-config.json << 'EOF'
-            {
+            # 使用echo命令直接创建JSON文件
+            echo '{
               "env_var": {
                 "name": "VITE_BACKEND_URL",
-                "value": "$BACKEND_URL",
+                "value": "'$BACKEND_URL'",
                 "type": "plain_text"
               },
               "deployment_configs": {
@@ -114,7 +113,7 @@ jobs:
                   "env_vars": [
                     {
                       "name": "VITE_BACKEND_URL",
-                      "value": "$BACKEND_URL"
+                      "value": "'$BACKEND_URL'"
                     }
                   ]
                 },
@@ -122,16 +121,12 @@ jobs:
                   "env_vars": [
                     {
                       "name": "VITE_BACKEND_URL",
-                      "value": "$BACKEND_URL"
+                      "value": "'$BACKEND_URL'"
                     }
                   ]
                 }
               }
-            }
-            EOF
-          
-            # 替换环境变量值
-            sed -i "s|\$BACKEND_URL|$BACKEND_URL|g" env-config.json
+            }' > env-config.json
           
             # 设置环境变量
             ENV_RESULT=$(curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/cloudpaste-frontend/environment_variables" \
