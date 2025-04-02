@@ -156,6 +156,7 @@ Fork 仓库，填好密钥，然后运行工作流
 6. **用 schema.sql 初始化数据库**（创建表和初始数据）
 7. **设置 ENCRYPTION_SECRET 环境变量**（从 GitHub Secrets 获取或自动生成）
 8. 自动部署 Worker 到 Cloudflare
+9. 设置自定义域名代替cf原本的域名
 
 ### 前端自动部署
 
@@ -170,7 +171,7 @@ Fork 仓库，填好密钥，然后运行工作流
 4. 添加环境变量：
 
    - 名称：`VITE_BACKEND_URL`
-   - 值：您的后端 Worker URL（如 `https://cloudpaste-backend.your-username.workers.dev`）
+   - 值：您的后端 Worker URL（如 `https://cloudpaste-backend.your-username.workers.dev`）建议使用自定义的worker后端域名。
 
 5. 随后再次运行一遍工作流，完成后端域名加载
 #### Vercel
@@ -354,7 +355,7 @@ cd CloudPaste/backend
    ![B2key](./images/B2/B2-2.png)
 3. 配置 B2 的跨域，B2 跨域配置比较麻烦，需注意
    ![B2cors](./images/B2/B2-3.png)
-4. 可以先尝试一下 1 或 2，去到上传页面看看是否能上传，F12 打开控制台若显示跨域错误，则使用 3。要一劳永逸就直接使用 3。
+4. 可以先尝试一下 1 或 2，去到上传页面看看是否能上传，F12 打开控制台若显示跨域错误，则使用3。要一劳永逸就直接使用3。
    ![B21](./images/B2/B2-4.png) 
 
 关于 3 的配置由于面板无法配置，只能手动配置，需[下载 B2 CLI](https://www.backblaze.com/docs/cloud-storage-command-line-tools)对应工具。
@@ -372,7 +373,9 @@ b2.exe bucket get <bucketName> //你可以执行获取bucket信息，<bucketName
 b2.exe bucket update <bucketName> allPrivate --cors-rules "[{\"corsRuleName\":\"CloudPaste\",\"allowedOrigins\":[\"*\"],\"allowedHeaders\":[\"*\"],\"allowedOperations\":[\"b2_upload_file\",\"b2_download_file_by_name\",\"b2_download_file_by_id\",\"s3_head\",\"s3_get\",\"s3_put\",\"s3_post\",\"s3_delete\"],\"exposeHeaders\":[\"Etag\",\"content-length\",\"content-type\",\"x-bz-content-sha1\"],\"maxAgeSeconds\":3600}]"
 ```
 
-其中<bucketName>换成你的存储桶名字，关于允许跨域的域名 allowedOrigins 可以根据个人配置，这里是允许所有。 5. 已完成跨域配置
+其中<bucketName>换成你的存储桶名字，关于允许跨域的域名 allowedOrigins 可以根据个人配置，这里是允许所有。 
+
+5. 已完成跨域配置
 
 ## 更多 S3 相关配置待续......
 

@@ -156,6 +156,7 @@ Deployment is automatically triggered whenever files in the `backend` directory 
 6. **Initialize database with schema.sql** (create tables and initial data)
 7. **Set ENCRYPTION_SECRET environment variable** (obtained from GitHub Secrets or automatically generated)
 8. Automatically deploy Worker to Cloudflare
+9. Set up a custom domain to replace the original cf domain
 
 ### Frontend Automated Deployment
 
@@ -170,7 +171,7 @@ Deployment is automatically triggered whenever files in the `frontend` directory
 4. Add environment variable:
 
    - Name: `VITE_BACKEND_URL`
-   - Value: Your backend Worker URL (e.g., `https://cloudpaste-backend.your-username.workers.dev`)
+   - Value: Your backend Worker URL (e.g., `https://cloudpaste-backend.your-username.workers.dev`)It is recommended to use a custom worker backend domain.
 
 5. Then run the workflow again to complete the backend domain loading
 
@@ -374,7 +375,9 @@ Since I'm configuring on Windows, I input in CMD in the corresponding CLI's exe 
 b2.exe bucket update <bucketName> allPrivate --cors-rules "[{\"corsRuleName\":\"CloudPaste\",\"allowedOrigins\":[\"*\"],\"allowedHeaders\":[\"*\"],\"allowedOperations\":[\"b2_upload_file\",\"b2_download_file_by_name\",\"b2_download_file_by_id\",\"s3_head\",\"s3_get\",\"s3_put\",\"s3_post\",\"s3_delete\"],\"exposeHeaders\":[\"Etag\",\"content-length\",\"content-type\",\"x-bz-content-sha1\"],\"maxAgeSeconds\":3600}]"
 ```
 
-Replace <bucketName> with your bucket name. For allowedOrigins in the cross-origin allowance, you can configure based on your needs; here it allows all. 5. Cross-origin configuration complete
+Replace <bucketName> with your bucket name. For allowedOrigins in the cross-origin allowance, you can configure based on your needs; here it allows all. 
+
+5. Cross-origin configuration complete
 
 ## More S3-related configurations to come......
 
