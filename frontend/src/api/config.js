@@ -17,15 +17,22 @@ function getApiBaseUrl() {
     }
   }
 
-  // 直接使用Vite的运行时环境变量（此方法在Cloudflare Pages中非常有效）
+  // 检查Cloudflare Pages特定的环境变量（生产环境）
+  // Cloudflare Pages在页面全局对象中暴露环境变量
+  if (typeof window !== "undefined" && typeof window.VITE_BACKEND_URL !== "undefined") {
+    console.log("使用Cloudflare Pages全局环境变量:", window.VITE_BACKEND_URL);
+    return window.VITE_BACKEND_URL;
+  }
+
+  // 尝试使用Vite的运行时环境变量（适用于Vercel和本地开发）
   const envUrl = import.meta.env.VITE_BACKEND_URL;
   if (envUrl) {
-    console.log("使用环境变量中的API地址:", envUrl);
+    console.log("使用Vite环境变量中的API地址:", envUrl);
     return envUrl;
   }
 
   // 如果环境变量未设置，输出警告并使用默认值
-  console.warn("⚠️ 未找到环境变量VITE_BACKEND_URL，使用默认API地址。请确保在Cloudflare Pages设置了环境变量。");
+  console.warn("⚠️ 未找到环境变量VITE_BACKEND_URL，使用默认API地址。请确保在Cloudflare Pages设置了环境变量，并确保设置了'生产环境变量在客户端可用'选项。");
   return DEFAULT_DEV_API_URL;
 }
 
@@ -57,6 +64,7 @@ export const getEnvironmentInfo = () => {
     mode: import.meta.env.MODE,
     isDevelopment: import.meta.env.DEV,
     isProduction: import.meta.env.PROD,
-    backendUrl: import.meta.env.VITE_BACKEND_URL || "未设置",
+    viteBuildEnv: import.meta.env.VITE_BACKEND_URL || "未设置",
+    cfPagesEnv: typeof window !== "undefined" ? window.VITE_BACKEND_URL || "未设置" : "未在浏览器环境",
   };
 };

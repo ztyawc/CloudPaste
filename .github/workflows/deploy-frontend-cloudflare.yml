@@ -91,6 +91,64 @@ jobs:
             exit 1
           fi
 
+      # 配置Cloudflare Pages环境变量（如果BACKEND_URL存在）
+      - name: Configure Cloudflare Pages Environment Variables
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+        run: |
+          if [ -n "$BACKEND_URL" ]; then
+            echo "设置Cloudflare Pages环境变量..."
+          
+            # 创建环境变量配置
+            cat << EOF > env-config.json
+            {
+              "env_var": {
+                "name": "VITE_BACKEND_URL",
+                "value": "$BACKEND_URL",
+                "type": "plain_text"
+              },
+              "deployment_configs": {
+                "preview": {
+                  "env_vars": [
+                    {
+                      "name": "VITE_BACKEND_URL",
+                      "value": "$BACKEND_URL"
+                    }
+                  ]
+                },
+                "production": {
+                  "env_vars": [
+                    {
+                      "name": "VITE_BACKEND_URL",
+                      "value": "$BACKEND_URL"
+                    }
+                  ]
+                }
+              }
+            }
+            EOF
+          
+            # 设置环境变量
+            ENV_RESULT=$(curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/cloudpaste-frontend/environment_variables" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data @env-config.json)
+          
+            SUCCESS=$(echo "$ENV_RESULT" | jq -r '.success')
+            if [ "$SUCCESS" == "true" ]; then
+              echo "✅ 成功设置环境变量 VITE_BACKEND_URL"
+            else
+              ERROR=$(echo "$ENV_RESULT" | jq -r '.errors[0].message')
+              echo "⚠️ 设置环境变量失败: $ERROR"
+              echo "请在部署后手动设置环境变量"
+            fi
+          else
+            echo "⚠️ BACKEND_URL未设置，跳过环境变量配置"
+            echo "请在部署后手动设置环境变量"
+          fi
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
@@ -111,6 +169,7 @@ jobs:
           echo "- 进入 Pages > cloudpaste-frontend > Settings > Environment variables"
           echo "- 添加 VITE_BACKEND_URL = 您的后端Worker URL"
           echo "- 确保添加后点击'保存'按钮并重新部署项目"
+          echo "- ⚠️ 重要: 确保勾选'生产环境变量在客户端可用(Production environment variables available at build time and runtime)'选项"
           echo ""
           echo "后续步骤："
           echo "1. 设置环境变量后，访问您的 Cloudflare Pages URL"
