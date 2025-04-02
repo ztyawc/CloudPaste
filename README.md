@@ -159,7 +159,7 @@ Fork 仓库，填好密钥，然后运行工作流
 
 ### 前端自动部署
 
-#### Cloudflare Pages
+#### Cloudflare Pages(推荐)
 
 Fork 仓库，填好密钥，然后运行工作流
 每当 `frontend` 目录中的文件有更改并推送到 `main` 或 `master` 分支时，会自动触发部署。部署后需在 Cloudflare Pages 控制面板设置环境变量：
@@ -172,6 +172,7 @@ Fork 仓库，填好密钥，然后运行工作流
    - 名称：`VITE_BACKEND_URL`
    - 值：您的后端 Worker URL（如 `https://cloudpaste-backend.your-username.workers.dev`）
 
+5. 随后再次运行一遍工作流，完成后端域名加载
 #### Vercel
 
 Vercel 建议使用以下方式部署：
@@ -185,6 +186,8 @@ Build Command（构建命令）: npm run build
 Output Directory（输出目录）: dist
 Install Command（安装命令）: npm install
 ```
+3. 在下面配置环境变量：输入：VITE_BACKEND_URL 和你的后端域名
+4. 点击 "Deploy" 按钮进行部署
 
 ☝️ **以上二选一即可**
 

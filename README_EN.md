@@ -159,7 +159,7 @@ Deployment is automatically triggered whenever files in the `backend` directory 
 
 ### Frontend Automated Deployment
 
-#### Cloudflare Pages
+#### Cloudflare Pages（Recommendation）
 
 Fork the repository, fill in the secrets, and then run the workflow.
 Deployment is automatically triggered whenever files in the `frontend` directory are changed and pushed to the `main` or `master` branch. After deployment, you need to set environment variables in the Cloudflare Pages control panel:
@@ -171,6 +171,8 @@ Deployment is automatically triggered whenever files in the `frontend` directory
 
    - Name: `VITE_BACKEND_URL`
    - Value: Your backend Worker URL (e.g., `https://cloudpaste-backend.your-username.workers.dev`)
+
+5. Then run the workflow again to complete the backend domain loading
 
 #### Vercel
 
@@ -185,6 +187,8 @@ Build Command: npm run build
 Output Directory: dist
 Install Command: npm install
 ```
+3. Configure the environment variables below: Enter: VITE_BACKEND_URL and your backend domain
+4. Click the "Deploy" button to deploy
 
 ☝️ **Choose one of the above methods**
 
