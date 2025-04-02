@@ -18,7 +18,7 @@ window.appConfig = {
 `;
 
 // 确保public目录存在
-const publicDir = path.resolve(__dirname, "../public");
+const publicDir = path.resolve(__dirname, "public");
 if (!fs.existsSync(publicDir)) {
   fs.mkdirSync(publicDir, { recursive: true });
 }
