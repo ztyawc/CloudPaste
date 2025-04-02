@@ -11,17 +11,8 @@
     <link rel="apple-touch-icon" href="/icons-32.png" />
     <link rel="manifest" href="/manifest.json" />
     <title>CloudPaste - 安全分享您的内容</title>
-    <!-- Cloudflare Pages 环境变量注入 -->
-    <script>
-        // 此脚本将被Cloudflare Pages自动替换，使环境变量在客户端可用
-        // 它不会影响本地开发环境或其他平台如Vercel
-        window.VITE_BACKEND_URL = "<!-- CLOUDFLARE_PAGES_ENV:VITE_BACKEND_URL -->";
-
-        // 清理可能的HTML注释标记（当环境变量未设置时）
-        if (window.VITE_BACKEND_URL.includes("CLOUDFLARE_PAGES_ENV")) {
-            window.VITE_BACKEND_URL = undefined;
-        }
-    </script>
+    <!-- 运行时配置文件 -->
+    <script src="/config.js"></script>
 </head>
 <body>
 <div id="app"></div>
