@@ -330,8 +330,9 @@ cd CloudPaste/backend
 2. Click R2 Storage and create a bucket.
 3. Create API token
 
-<img src="./images/R2/R2-api.png" width="400"/>
-<img src="./images/R2/R2-rw.png" width="400"/>
+   ![R2api](./images/R2/R2-api.png)
+   ![R2rw](./images/R2/R2-rw.png)
+
 
 4. Save all data after creation; you'll need it later
 5. Configure cross-origin rules: click the corresponding bucket, click Settings, edit CORS policy as shown below:
@@ -351,13 +352,13 @@ cd CloudPaste/backend
 ## B2 API Retrieval and Cross-Origin Configuration
 
 1. If you don't have a B2 account, [register](https://www.backblaze.com/sign-up/cloud-storage?referrer=getstarted) one first, then create a bucket.
-   <img src="./images/B2/B2-1.png" width="400"/>
+   ![B2账号注册](./images/B2/B2-1.png)
 2. Click Application Key in the sidebar, click Create Key, and follow the illustration.
-   <img src="./images/B2/B2-2.png" width="400"/>
+   ![B2key](./images/B2/B2-2.png)
 3. Configure B2 cross-origin; B2 cross-origin configuration is more complex, take note
-   <img src="./images/B2/B2-3.png" width="400"/>
+   ![B2cors](./images/B2/B2-3.png)
 4. You can try options 1 or 2 first, go to the upload page and see if you can upload. If F12 console shows cross-origin errors, use option 3. For a permanent solution, use option 3 directly.
-   <img src="./images/B2/B2-4.png" width="400"/>
+   ![B21](./images/B2/B2-4.png)
 
 Regarding option 3 configuration, since the panel cannot configure it, you need to configure manually by [downloading B2 CLI](https://www.backblaze.com/docs/cloud-storage-command-line-tools) tool.
 After downloading, in the corresponding download directory CMD, enter the following commands:

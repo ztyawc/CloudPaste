@@ -328,9 +328,8 @@ cd CloudPaste/backend
 1. 登录 Cloudflare Dashboard
 2. 点击 R2 存储，创建一个存储桶。
 3. 创建 API 令牌
-
-<img src="./images/R2/R2-api.png" width="400"/>
-<img src="./images/R2/R2-rw.png" width="400"/>
+   ![R2api](./images/R2/R2-api.png)
+   ![R2rw](./images/R2/R2-rw.png)
 
 4. 创建后把全部数据都保存好，后续要用
 5. 配置跨域规则，点击对应存储桶，点击设置，编辑 CORS 策略，如下所示：
@@ -350,13 +349,13 @@ cd CloudPaste/backend
 ## B2 API 相关获取及跨域配置
 
 1. 若没有 B2 账号，可以先[注册](https://www.backblaze.com/sign-up/cloud-storage?referrer=getstarted)一个，然后创建一个存储桶。
-   <img src="./images/B2/B2-1.png" width="400"/>
+   ![B2账号注册](./images/B2/B2-1.png)
 2. 点击侧边栏的 Application Key，点击 Create Key，然后如图所示。
-   <img src="./images/B2/B2-2.png" width="400"/>
+   ![B2key](./images/B2/B2-2.png)
 3. 配置 B2 的跨域，B2 跨域配置比较麻烦，需注意
-   <img src="./images/B2/B2-3.png" width="400"/>
+   ![B2cors](./images/B2/B2-3.png)
 4. 可以先尝试一下 1 或 2，去到上传页面看看是否能上传，F12 打开控制台若显示跨域错误，则使用 3。要一劳永逸就直接使用 3。
-   <img src="./images/B2/B2-4.png" width="400"/>
+   ![B21](./images/B2/B2-4.png) 
 
 关于 3 的配置由于面板无法配置，只能手动配置，需[下载 B2 CLI](https://www.backblaze.com/docs/cloud-storage-command-line-tools)对应工具。
 下载后，在对应下载目录 cmd，在命令行输入以下命令：
