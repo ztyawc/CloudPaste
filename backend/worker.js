@@ -2714,8 +2714,9 @@ app.post("/api/s3-configs/:id/test", authMiddleware, async (c) => {
 
     // 测试结果对象
     const testResult = {
-      read: { success: false, error: null },
-      write: { success: false, error: null },
+      read: { success: false, error: null, note: "后端直接测试，不代表前端访问" }, // 添加说明
+      write: { success: false, error: null, note: "后端直接测试，不代表前端上传" }, // 添加说明
+      cors: { success: false, error: null, note: "模拟真实前端跨域请求，能代表实际使用情况" }, // 添加说明
       connectionInfo: {
         bucket: config.bucket_name,
         endpoint: config.endpoint_url || "默认",
@@ -2739,6 +2740,7 @@ app.post("/api/s3-configs/:id/test", authMiddleware, async (c) => {
       testResult.read.success = true;
       testResult.read.objectCount = response.Contents?.length || 0;
       testResult.read.prefix = config.directory ? `${config.directory}/` : "(根目录)";
+      testResult.read.note = "此测试通过后端SDK直接访问S3，成功不代表前端可访问";
 
       // 更详细的信息
       if (response.Contents && response.Contents.length > 0) {
@@ -2787,12 +2789,13 @@ app.post("/api/s3-configs/:id/test", authMiddleware, async (c) => {
 
         // 尝试上传一个测试文件
         const uploadStartTime = performance.now();
-        await s3Client.send(putCommand);
+        const putResponse = await s3Client.send(putCommand);
         const uploadEndTime = performance.now();
 
         testResult.write.success = true;
         testResult.write.uploadTime = Math.round(uploadEndTime - uploadStartTime);
         testResult.write.testFile = testKey;
+        testResult.write.note = "此测试通过后端SDK直接上传，成功不代表前端可上传";
 
         // 上传成功后尝试删除测试文件 (但不影响测试结果)
         try {
@@ -2813,6 +2816,91 @@ app.post("/api/s3-configs/:id/test", authMiddleware, async (c) => {
       testResult.write.code = error.Code || error.code;
     }
 
+    // 测试阶段3: 跨域CORS配置测试
+    try {
+      const timestamp = Date.now();
+      const testKey = `${config.directory ? config.directory + "/" : ""}__cors_test_${timestamp}.txt`;
+      const testContent = "CloudPaste CORS测试文件";
+
+      // 生成预签名URL用于跨域测试
+      const putCommand = new PutObjectCommand({
+        Bucket: config.bucket_name,
+        Key: testKey,
+        ContentType: "text/plain",
+      });
+
+      // 获取预签名URL
+      const presignedUrl = await getSignedUrl(s3Client, putCommand, { expiresIn: 300 });
+
+      // 模拟前端请求 - 首先发送预检OPTIONS请求
+      // 获取域名用于Origin头
+      const requestOrigin = c.req.header("origin");
+
+      try {
+        // 创建fetch请求测试服务端预检响应
+        const optionsResponse = await fetch(presignedUrl, {
+          method: "OPTIONS",
+          headers: {
+            Origin: requestOrigin,
+            "Access-Control-Request-Method": "PUT",
+            "Access-Control-Request-Headers": "content-type,x-amz-content-sha256,x-amz-date,authorization",
+          },
+        });
+
+        // 检查预检响应头
+        const allowOrigin = optionsResponse.headers.get("access-control-allow-origin");
+        const allowMethods = optionsResponse.headers.get("access-control-allow-methods");
+        const allowHeaders = optionsResponse.headers.get("access-control-allow-headers");
+
+        if (allowOrigin) {
+          testResult.cors.success = true;
+          testResult.cors.allowOrigin = allowOrigin;
+          testResult.cors.allowMethods = allowMethods;
+          testResult.cors.allowHeaders = allowHeaders;
+          testResult.cors.note = "此测试模拟真实前端跨域请求，是判断S3配置是否支持前端直传的关键指标";
+
+          // 实际尝试上传(可选,因为预检通过就基本可以确认CORS配置正确)
+          try {
+            const putResponse = await fetch(presignedUrl, {
+              method: "PUT",
+              headers: {
+                Origin: requestOrigin,
+                "Content-Type": "text/plain",
+              },
+              body: testContent,
+            });
+
+            if (putResponse.ok) {
+              testResult.cors.upload = true;
+
+              // 清理测试文件
+              const deleteCommand = new DeleteObjectCommand({
+                Bucket: config.bucket_name,
+                Key: testKey,
+              });
+              await s3Client.send(deleteCommand);
+            } else {
+              testResult.cors.upload = false;
+              testResult.cors.uploadError = `状态码: ${putResponse.status}`;
+            }
+          } catch (uploadError) {
+            testResult.cors.upload = false;
+            testResult.cors.uploadError = uploadError.message;
+          }
+        } else {
+          testResult.cors.success = false;
+          testResult.cors.error = "预检请求未返回Access-Control-Allow-Origin头，可能没有正确配置CORS";
+          testResult.cors.statusCode = optionsResponse.status;
+        }
+      } catch (corsError) {
+        testResult.cors.success = false;
+        testResult.cors.error = corsError.message;
+      }
+    } catch (presignError) {
+      testResult.cors.success = false;
+      testResult.cors.error = "无法生成预签名URL: " + presignError.message;
+    }
+
     // 更新最后使用时间
     await db
         .prepare(
@@ -2827,16 +2915,24 @@ app.post("/api/s3-configs/:id/test", authMiddleware, async (c) => {
 
     // 生成友好的测试结果消息
     let message = "S3配置测试";
-    let overallSuccess = testResult.read.success; // 至少读取权限测试成功就算成功
+    // 至少读取权限测试成功就算基本连接成功
+    let overallSuccess = testResult.read.success;
 
     if (testResult.read.success && testResult.write.success) {
-      message += "成功 (读写权限均可用)";
+      if (testResult.cors.success) {
+        message += "成功 (读写权限均可用，跨域配置正确)";
+      } else {
+        message += "部分成功 (读写权限均可用，但跨域配置有问题)";
+      }
     } else if (testResult.read.success) {
       message += "部分成功 (仅读权限可用)";
     } else {
       message += "失败 (读取权限不可用)";
       overallSuccess = false;
     }
+
+    // 测试结果的全局提示说明
+    testResult.globalNote = "读写测试仅验证基本连接和权限，通过后端直接测试；CORS测试模拟前端直传，才是判断前端能否直接上传的关键指标";
 
     return c.json({
       code: ApiStatus.SUCCESS,
