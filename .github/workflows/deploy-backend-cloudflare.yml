@@ -88,30 +88,46 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          # 检查密钥是否已存在
-          SECRET_EXISTS=$(npx wrangler secret list 2>&1 | grep -q "ENCRYPTION_SECRET" && echo "yes" || echo "no")
+          echo "检查ENCRYPTION_SECRET是否已存在..."
 
-          if [ "$SECRET_EXISTS" = "yes" ]; then
+          # 保存列表命令的完整输出用于调试
+          SECRET_LIST_OUTPUT=$(npx wrangler secret list 2>&1)
+          echo "Secret列表输出 (部分屏蔽):"
+          echo "$SECRET_LIST_OUTPUT" | sed 's/"name"/"name"/g'
+
+          # 使用更可靠的方法检查密钥是否存在
+          if echo "$SECRET_LIST_OUTPUT" | grep -q "ENCRYPTION_SECRET"; then
             echo "✅ ENCRYPTION_SECRET 已存在，跳过创建步骤"
           else
+            echo "ENCRYPTION_SECRET 不存在，准备创建..."
+          
             # 如果不存在，则创建密钥
             if [[ -n "${{ secrets.ENCRYPTION_SECRET }}" ]]; then
+              echo "使用预定义的ENCRYPTION_SECRET值"
               ENCRYPTION_VALUE="${{ secrets.ENCRYPTION_SECRET }}"
             else
+              echo "生成随机ENCRYPTION_SECRET值"
               ENCRYPTION_VALUE=$(openssl rand -base64 32)
             fi
 
             set +e
+            echo "正在设置ENCRYPTION_SECRET..."
             echo "$ENCRYPTION_VALUE" | npx wrangler secret put ENCRYPTION_SECRET
             SECRET_RESULT=$?
             set -e
           
             if [ $SECRET_RESULT -ne 0 ]; then
-              echo "❌ 设置机密失败"
-              exit 1
+              echo "❌ 设置密钥失败"
+              # 尝试最后检查一次是否因为密钥已存在而失败
+              if npx wrangler secret list 2>&1 | grep -q "ENCRYPTION_SECRET"; then
+                echo "但密钥似乎已经存在，继续执行"
+              else
+                echo "密钥确实不存在，无法创建，退出"
+                exit 1
+              fi
+            else
+              echo "✅ ENCRYPTION_SECRET 已成功创建"
             fi
-          
-            echo "✅ ENCRYPTION_SECRET 已成功创建"
           fi
 
       - name: Deploy to Cloudflare Workers
