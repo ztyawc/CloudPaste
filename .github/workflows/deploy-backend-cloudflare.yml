@@ -112,18 +112,26 @@ jobs:
 
             set +e
             echo "正在设置ENCRYPTION_SECRET..."
-            echo "$ENCRYPTION_VALUE" | npx wrangler secret put ENCRYPTION_SECRET
+            SECRET_PUT_OUTPUT=$(echo "$ENCRYPTION_VALUE" | npx wrangler secret put ENCRYPTION_SECRET 2>&1)
             SECRET_RESULT=$?
             set -e
           
+            echo "Secret put 输出:"
+            echo "$SECRET_PUT_OUTPUT" | grep -v "Please update to the latest version"
+          
             if [ $SECRET_RESULT -ne 0 ]; then
-              echo "❌ 设置密钥失败"
-              # 尝试最后检查一次是否因为密钥已存在而失败
-              if npx wrangler secret list 2>&1 | grep -q "ENCRYPTION_SECRET"; then
-                echo "但密钥似乎已经存在，继续执行"
+              # 检查错误消息是否包含"already in use"等表示密钥已存在的关键词
+              if echo "$SECRET_PUT_OUTPUT" | grep -q "already in use"; then
+                echo "⚠️ 密钥已存在于Worker中但未被列表命令检测到，继续执行"
               else
-                echo "密钥确实不存在，无法创建，退出"
-                exit 1
+                echo "❌ 设置密钥失败"
+                # 尝试最后检查一次是否因为密钥已存在而失败
+                if npx wrangler secret list 2>&1 | grep -q "ENCRYPTION_SECRET"; then
+                  echo "但密钥似乎已经存在，继续执行"
+                else
+                  echo "密钥确实不存在，无法创建，退出"
+                  exit 1
+                fi
               fi
             else
               echo "✅ ENCRYPTION_SECRET 已成功创建"
