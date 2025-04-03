@@ -68,14 +68,14 @@ const S3ProviderTypes = {
 
 // CORS中间件配置 - 确保这是第一个中间件
 app.use(
-  "*",
-  cors({
-    origin: "*",
-    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization"],
-    exposeHeaders: ["Content-Length"],
-    maxAge: 86400,
-  })
+    "*",
+    cors({
+      origin: "*",
+      allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      allowHeaders: ["Content-Type", "Authorization"],
+      exposeHeaders: ["Content-Length"],
+      maxAge: 86400,
+    })
 );
 
 // API响应格式化中间件 - 统一处理响应格式
@@ -114,13 +114,13 @@ app.use("*", async (c, next) => {
     const errorMessage = error instanceof Error ? error.message : "服务器内部错误";
 
     return c.json(
-      {
-        code: statusCode,
-        message: errorMessage,
-        data: null,
-        success: false, // 添加兼容前端的字段
-      },
-      statusCode
+        {
+          code: statusCode,
+          message: errorMessage,
+          data: null,
+          success: false, // 添加兼容前端的字段
+        },
+        statusCode
     );
   }
 });
@@ -131,12 +131,12 @@ const authMiddleware = async (c, next) => {
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return c.json(
-      {
-        code: ApiStatus.UNAUTHORIZED,
-        message: "未授权访问",
-        data: null,
-      },
-      ApiStatus.UNAUTHORIZED
+        {
+          code: ApiStatus.UNAUTHORIZED,
+          message: "未授权访问",
+          data: null,
+        },
+        ApiStatus.UNAUTHORIZED
     );
   }
 
@@ -148,12 +148,12 @@ const authMiddleware = async (c, next) => {
 
     if (!adminId) {
       return c.json(
-        {
-          code: ApiStatus.UNAUTHORIZED,
-          message: "无效的认证令牌",
-          data: null,
-        },
-        ApiStatus.UNAUTHORIZED
+          {
+            code: ApiStatus.UNAUTHORIZED,
+            message: "无效的认证令牌",
+            data: null,
+          },
+          ApiStatus.UNAUTHORIZED
       );
     }
 
@@ -163,12 +163,12 @@ const authMiddleware = async (c, next) => {
     await next();
   } catch (error) {
     return c.json(
-      {
-        code: ApiStatus.UNAUTHORIZED,
-        message: "认证失败: " + error.message,
-        data: null,
-      },
-      ApiStatus.UNAUTHORIZED
+        {
+          code: ApiStatus.UNAUTHORIZED,
+          message: "认证失败: " + error.message,
+          data: null,
+        },
+        ApiStatus.UNAUTHORIZED
     );
   }
 };
@@ -189,13 +189,13 @@ const apiKeyTextMiddleware = async (c, next) => {
 
   // 查询API密钥和权限
   const keyRecord = await db
-    .prepare(
-      `SELECT id, name, text_permission, file_permission, expires_at 
+      .prepare(
+          `SELECT id, name, text_permission, file_permission, expires_at 
        FROM ${DbTables.API_KEYS} 
        WHERE key = ?`
-    )
-    .bind(apiKey)
-    .first();
+      )
+      .bind(apiKey)
+      .first();
 
   // 检查API密钥是否存在且有文本权限
   if (!keyRecord || keyRecord.text_permission !== 1) {
@@ -209,13 +209,13 @@ const apiKeyTextMiddleware = async (c, next) => {
 
   // 更新最后使用时间
   await db
-    .prepare(
-      `UPDATE ${DbTables.API_KEYS}
+      .prepare(
+          `UPDATE ${DbTables.API_KEYS}
        SET last_used = ?
        WHERE id = ?`
-    )
-    .bind(getLocalTimeString(), keyRecord.id)
-    .run();
+      )
+      .bind(getLocalTimeString(), keyRecord.id)
+      .run();
 
   // 将API密钥ID和完整权限信息存入请求上下文
   c.set("apiKeyId", keyRecord.id);
@@ -250,13 +250,13 @@ const apiKeyFileMiddleware = async (c, next) => {
 
   // 查询API密钥和权限
   const keyRecord = await db
-    .prepare(
-      `SELECT id, name, text_permission, file_permission, expires_at 
+      .prepare(
+          `SELECT id, name, text_permission, file_permission, expires_at 
        FROM ${DbTables.API_KEYS} 
        WHERE key = ?`
-    )
-    .bind(apiKey)
-    .first();
+      )
+      .bind(apiKey)
+      .first();
 
   // 检查API密钥是否存在且有文件权限
   if (!keyRecord || keyRecord.file_permission !== 1) {
@@ -270,13 +270,13 @@ const apiKeyFileMiddleware = async (c, next) => {
 
   // 更新最后使用时间
   await db
-    .prepare(
-      `UPDATE ${DbTables.API_KEYS}
+      .prepare(
+          `UPDATE ${DbTables.API_KEYS}
        SET last_used = ?
        WHERE id = ?`
-    )
-    .bind(getLocalTimeString(), keyRecord.id)
-    .run();
+      )
+      .bind(getLocalTimeString(), keyRecord.id)
+      .run();
 
   // 将API密钥ID和完整权限信息存入请求上下文
   c.set("apiKeyId", keyRecord.id);
@@ -310,15 +310,15 @@ const apiKeyMiddleware = async (c, next) => {
   try {
     // 查询数据库中的API密钥记录
     const keyRecord = await db
-      .prepare(
-        `
+        .prepare(
+            `
       SELECT id, name, text_permission, file_permission, expires_at
       FROM ${DbTables.API_KEYS}
       WHERE key = ?
     `
-      )
-      .bind(apiKey)
-      .first();
+        )
+        .bind(apiKey)
+        .first();
 
     // 如果密钥不存在
     if (!keyRecord) {
@@ -332,15 +332,15 @@ const apiKeyMiddleware = async (c, next) => {
 
     // 更新最后使用时间
     await db
-      .prepare(
-        `
+        .prepare(
+            `
       UPDATE ${DbTables.API_KEYS}
       SET last_used = ?
       WHERE id = ?
     `
-      )
-      .bind(getLocalTimeString(), keyRecord.id)
-      .run();
+        )
+        .bind(getLocalTimeString(), keyRecord.id)
+        .run();
 
     // 将密钥信息添加到上下文中
     c.set("apiKey", {
@@ -495,8 +495,8 @@ function getFileNameAndExt(filename) {
  */
 function getSafeFileName(fileName) {
   return fileName
-    .replace(/[^\w\u4e00-\u9fa5\-\.]/g, "_") // 仅保留字母、数字、中文、下划线、连字符和点
-    .replace(/_{2,}/g, "_"); // 将多个连续下划线替换为单个
+      .replace(/[^\w\u4e00-\u9fa5\-\.]/g, "_") // 仅保留字母、数字、中文、下划线、连字符和点
+      .replace(/_{2,}/g, "_"); // 将多个连续下划线替换为单个
 }
 
 /**
@@ -868,15 +868,15 @@ async function getS3ConfigsWithUsage(db) {
   try {
     // 获取所有S3配置
     const configsResult = await db
-      .prepare(
-        `SELECT 
+        .prepare(
+            `SELECT 
           id, name, provider_type, bucket_name, 
           endpoint_url, region, path_style, default_folder, 
           is_public, total_storage_bytes
         FROM ${DbTables.S3_CONFIGS}
         ORDER BY name ASC`
-      )
-      .all();
+        )
+        .all();
 
     if (!configsResult.results || configsResult.results.length === 0) {
       return [];
@@ -889,13 +889,13 @@ async function getS3ConfigsWithUsage(db) {
     for (const config of configs) {
       // 获取该配置下的文件总大小
       const usageResult = await db
-        .prepare(
-          `SELECT SUM(size) as total_size, COUNT(*) as file_count
+          .prepare(
+              `SELECT SUM(size) as total_size, COUNT(*) as file_count
            FROM ${DbTables.FILES}
            WHERE s3_config_id = ?`
-        )
-        .bind(config.id)
-        .first();
+          )
+          .bind(config.id)
+          .first();
 
       const usedStorage = usageResult ? usageResult.total_size || 0 : 0;
       const fileCount = usageResult ? usageResult.file_count || 0 : 0;
@@ -1061,13 +1061,13 @@ async function validateAdminToken(db, token) {
   try {
     // 查询令牌是否存在并且未过期
     const result = await db
-      .prepare(
-        `SELECT admin_id, expires_at 
+        .prepare(
+            `SELECT admin_id, expires_at 
          FROM ${DbTables.ADMIN_TOKENS} 
          WHERE token = ?`
-      )
-      .bind(token)
-      .first();
+        )
+        .bind(token)
+        .first();
 
     if (!result) {
       console.log("令牌不存在");
@@ -1315,8 +1315,8 @@ async function incrementAndCheckFileViews(db, file, encryptionSecret) {
 
   // 重新获取更新后的文件信息
   const updatedFile = await db
-    .prepare(
-      `
+      .prepare(
+          `
       SELECT 
         f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, 
         f.remark, f.password, f.max_views, f.views, f.created_by,
@@ -1324,9 +1324,9 @@ async function incrementAndCheckFileViews(db, file, encryptionSecret) {
       FROM ${DbTables.FILES} f
       WHERE f.id = ?
     `
-    )
-    .bind(file.id)
-    .first();
+      )
+      .bind(file.id)
+      .first();
 
   // 检查是否超过最大访问次数
   if (updatedFile.max_views && updatedFile.max_views > 0 && updatedFile.views > updatedFile.max_views) {
@@ -1477,8 +1477,8 @@ async function isFileAccessible(db, file, encryptionSecret) {
 async function initDatabase(db) {
   // 创建管理员表
   await db
-    .prepare(
-      `
+      .prepare(
+          `
     CREATE TABLE IF NOT EXISTS ${DbTables.ADMINS} (
       id TEXT PRIMARY KEY,
       username TEXT UNIQUE NOT NULL,
@@ -1487,13 +1487,13 @@ async function initDatabase(db) {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `
-    )
-    .run();
+      )
+      .run();
 
   // 创建管理员令牌表
   await db
-    .prepare(
-      `
+      .prepare(
+          `
     CREATE TABLE IF NOT EXISTS ${DbTables.ADMIN_TOKENS} (
       token TEXT PRIMARY KEY,
       admin_id TEXT NOT NULL,
@@ -1502,13 +1502,13 @@ async function initDatabase(db) {
       FOREIGN KEY (admin_id) REFERENCES ${DbTables.ADMINS}(id) ON DELETE CASCADE
     )
   `
-    )
-    .run();
+      )
+      .run();
 
   // 创建Paste表
   await db
-    .prepare(
-      `
+      .prepare(
+          `
     CREATE TABLE IF NOT EXISTS ${DbTables.PASTES} (
       id TEXT PRIMARY KEY,
       slug TEXT UNIQUE NOT NULL,
@@ -1523,13 +1523,13 @@ async function initDatabase(db) {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `
-    )
-    .run();
+      )
+      .run();
 
   // 创建API密钥表
   await db
-    .prepare(
-      `
+      .prepare(
+          `
     CREATE TABLE IF NOT EXISTS ${DbTables.API_KEYS} (
       id TEXT PRIMARY KEY,
       name TEXT UNIQUE NOT NULL,
@@ -1541,13 +1541,13 @@ async function initDatabase(db) {
       last_used TIMESTAMP
     )
   `
-    )
-    .run();
+      )
+      .run();
 
   // 创建S3配置表
   await db
-    .prepare(
-      `
+      .prepare(
+          `
     CREATE TABLE IF NOT EXISTS ${DbTables.S3_CONFIGS} (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -1569,13 +1569,13 @@ async function initDatabase(db) {
       FOREIGN KEY (admin_id) REFERENCES ${DbTables.ADMINS}(id) ON DELETE CASCADE
     )
   `
-    )
-    .run();
+      )
+      .run();
 
   // 创建文件表
   await db
-    .prepare(
-      `
+      .prepare(
+          `
     CREATE TABLE IF NOT EXISTS ${DbTables.FILES} (
       id TEXT PRIMARY KEY,
       filename TEXT NOT NULL,
@@ -1598,13 +1598,13 @@ async function initDatabase(db) {
       FOREIGN KEY (s3_config_id) REFERENCES ${DbTables.S3_CONFIGS}(id) ON DELETE CASCADE
     )
   `
-    )
-    .run();
+      )
+      .run();
 
   // 创建文件密码表
   await db
-    .prepare(
-      `
+      .prepare(
+          `
     CREATE TABLE IF NOT EXISTS ${DbTables.FILE_PASSWORDS} (
       file_id TEXT PRIMARY KEY,
       plain_password TEXT NOT NULL,
@@ -1613,13 +1613,13 @@ async function initDatabase(db) {
       FOREIGN KEY (file_id) REFERENCES ${DbTables.FILES}(id) ON DELETE CASCADE
     )
   `
-    )
-    .run();
+      )
+      .run();
 
   // 创建系统设置表
   await db
-    .prepare(
-      `
+      .prepare(
+          `
     CREATE TABLE IF NOT EXISTS ${DbTables.SYSTEM_SETTINGS} (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
@@ -1628,30 +1628,30 @@ async function initDatabase(db) {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `
-    )
-    .run();
+      )
+      .run();
 
   // 检查是否已存在最大上传限制设置
   const maxUploadSize = await db
-    .prepare(
-      `
+      .prepare(
+          `
     SELECT value FROM ${DbTables.SYSTEM_SETTINGS}
     WHERE key = 'max_upload_size'
   `
-    )
-    .first();
+      )
+      .first();
 
   // 如果不存在，添加默认值
   if (!maxUploadSize) {
     await db
-      .prepare(
-        `
+        .prepare(
+            `
       INSERT INTO ${DbTables.SYSTEM_SETTINGS} (key, value, description)
       VALUES ('max_upload_size', ?, '单次最大上传文件大小限制')
     `
-      )
-      .bind(DEFAULT_MAX_UPLOAD_SIZE_MB.toString())
-      .run();
+        )
+        .bind(DEFAULT_MAX_UPLOAD_SIZE_MB.toString())
+        .run();
   }
 
   // 检查是否需要创建默认管理员账户
@@ -1662,14 +1662,14 @@ async function initDatabase(db) {
     const defaultPassword = await hashPassword("admin123");
 
     await db
-      .prepare(
-        `
+        .prepare(
+            `
       INSERT INTO ${DbTables.ADMINS} (id, username, password)
       VALUES (?, ?, ?)
     `
-      )
-      .bind(adminId, "admin", defaultPassword)
-      .run();
+        )
+        .bind(adminId, "admin", defaultPassword)
+        .run();
 
     console.log("已创建默认管理员账户: admin/admin123");
   }
@@ -1741,14 +1741,14 @@ app.post("/api/admin/login", async (c) => {
   expiresAt.setDate(expiresAt.getDate() + 1); // 1天过期
 
   await db
-    .prepare(
-      `
+      .prepare(
+          `
     INSERT INTO ${DbTables.ADMIN_TOKENS} (token, admin_id, expires_at)
     VALUES (?, ?, ?)
   `
-    )
-    .bind(token, admin.id, expiresAt.toISOString())
-    .run();
+      )
+      .bind(token, admin.id, expiresAt.toISOString())
+      .run();
 
   // 返回认证信息
   return c.json({
@@ -1803,28 +1803,28 @@ app.post("/api/admin/change-password", authMiddleware, async (c) => {
     const newPasswordHash = newPassword ? await hashPassword(newPassword) : admin.password;
 
     await db
-      .prepare(
-        `
+        .prepare(
+            `
       UPDATE ${DbTables.ADMINS} 
       SET username = ?, password = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `
-      )
-      .bind(newUsername, newPasswordHash, adminId)
-      .run();
+        )
+        .bind(newUsername, newPasswordHash, adminId)
+        .run();
   } else if (newPassword) {
     // 仅更新密码
     const newPasswordHash = await hashPassword(newPassword);
     await db
-      .prepare(
-        `
+        .prepare(
+            `
       UPDATE ${DbTables.ADMINS} 
       SET password = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `
-      )
-      .bind(newPasswordHash, adminId)
-      .run();
+        )
+        .bind(newPasswordHash, adminId)
+        .run();
   } else {
     throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "未提供新密码或新用户名" });
   }
@@ -1882,8 +1882,8 @@ app.get("/api/admin/api-keys", authMiddleware, async (c) => {
 
     // 查询所有密钥，并隐藏完整密钥
     const keys = await db
-      .prepare(
-        `
+        .prepare(
+            `
       SELECT 
         id, 
         name, 
@@ -1897,8 +1897,8 @@ app.get("/api/admin/api-keys", authMiddleware, async (c) => {
       FROM ${DbTables.API_KEYS}
       ORDER BY created_at DESC
     `
-      )
-      .all();
+        )
+        .all();
 
     // 兼容前端期望的响应格式
     return c.json({
@@ -1962,14 +1962,14 @@ app.post("/api/admin/api-keys", authMiddleware, async (c) => {
 
     // 插入到数据库
     await db
-      .prepare(
-        `
+        .prepare(
+            `
       INSERT INTO ${DbTables.API_KEYS} (id, name, key, text_permission, file_permission, expires_at)
       VALUES (?, ?, ?, ?, ?, ?)
     `
-      )
-      .bind(id, body.name.trim(), key, textPermission, filePermission, expiresAt.toISOString())
-      .run();
+        )
+        .bind(id, body.name.trim(), key, textPermission, filePermission, expiresAt.toISOString())
+        .run();
 
     // 准备响应数据
     const responseData = {
@@ -2080,9 +2080,9 @@ app.put("/api/admin/api-keys/:id", authMiddleware, async (c) => {
 
     // 执行更新
     await db
-      .prepare(`UPDATE ${DbTables.API_KEYS} SET ${updates.join(", ")} WHERE id = ?`)
-      .bind(...params)
-      .run();
+        .prepare(`UPDATE ${DbTables.API_KEYS} SET ${updates.join(", ")} WHERE id = ?`)
+        .bind(...params)
+        .run();
 
     // 返回更新结果
     return c.json({
@@ -2160,13 +2160,13 @@ app.get("/api/s3-configs", async (c) => {
       const apiKey = authHeader.substring(7);
       // 查询API密钥和权限
       const keyRecord = await db
-        .prepare(
-          `SELECT id, name, file_permission, expires_at 
+          .prepare(
+              `SELECT id, name, file_permission, expires_at 
            FROM ${DbTables.API_KEYS} 
            WHERE key = ?`
-        )
-        .bind(apiKey)
-        .first();
+          )
+          .bind(apiKey)
+          .first();
 
       if (keyRecord && keyRecord.file_permission === 1) {
         // 检查是否过期
@@ -2175,13 +2175,13 @@ app.get("/api/s3-configs", async (c) => {
 
           // 更新最后使用时间
           await db
-            .prepare(
-              `UPDATE ${DbTables.API_KEYS}
+              .prepare(
+                  `UPDATE ${DbTables.API_KEYS}
                SET last_used = ?
                WHERE id = ?`
-            )
-            .bind(getLocalTimeString(), keyRecord.id)
-            .run();
+              )
+              .bind(getLocalTimeString(), keyRecord.id)
+              .run();
         }
       }
     } catch (error) {
@@ -2200,8 +2200,8 @@ app.get("/api/s3-configs", async (c) => {
     if (isAdmin) {
       // 管理员可以看到所有自己的配置
       configs = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT 
             id, name, provider_type, endpoint_url, bucket_name, 
             region, path_style, default_folder, is_public, is_default, 
@@ -2210,14 +2210,14 @@ app.get("/api/s3-configs", async (c) => {
           WHERE admin_id = ?
           ORDER BY name ASC
           `
-        )
-        .bind(adminId)
-        .all();
+          )
+          .bind(adminId)
+          .all();
     } else {
       // API密钥用户只能看到公开的配置
       configs = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT 
             id, name, provider_type, endpoint_url, bucket_name, 
             region, path_style, default_folder, is_default, created_at, updated_at, total_storage_bytes
@@ -2225,8 +2225,8 @@ app.get("/api/s3-configs", async (c) => {
           WHERE is_public = 1
           ORDER BY name ASC
           `
-        )
-        .all();
+          )
+          .all();
     }
 
     return c.json({
@@ -2270,13 +2270,13 @@ app.get("/api/s3-configs/:id", async (c) => {
       const apiKey = authHeader.substring(7);
       // 查询API密钥和权限
       const keyRecord = await db
-        .prepare(
-          `SELECT id, name, file_permission, expires_at 
+          .prepare(
+              `SELECT id, name, file_permission, expires_at 
            FROM ${DbTables.API_KEYS} 
            WHERE key = ?`
-        )
-        .bind(apiKey)
-        .first();
+          )
+          .bind(apiKey)
+          .first();
 
       if (keyRecord && keyRecord.file_permission === 1) {
         // 检查是否过期
@@ -2300,8 +2300,8 @@ app.get("/api/s3-configs/:id", async (c) => {
     if (isAdmin) {
       // 管理员查询
       config = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT 
             id, name, provider_type, endpoint_url, bucket_name, 
             region, path_style, default_folder, is_public, is_default, 
@@ -2309,23 +2309,23 @@ app.get("/api/s3-configs/:id", async (c) => {
           FROM ${DbTables.S3_CONFIGS}
           WHERE id = ? AND admin_id = ?
         `
-        )
-        .bind(id, adminId)
-        .first();
+          )
+          .bind(id, adminId)
+          .first();
     } else {
       // API密钥用户查询
       config = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT 
             id, name, provider_type, endpoint_url, bucket_name, 
             region, path_style, default_folder, is_default, created_at, updated_at, total_storage_bytes
           FROM ${DbTables.S3_CONFIGS}
           WHERE id = ? AND is_public = 1
         `
-        )
-        .bind(id)
-        .first();
+          )
+          .bind(id)
+          .first();
     }
 
     if (!config) {
@@ -2398,8 +2398,8 @@ app.post("/api/s3-configs", authMiddleware, async (c) => {
 
     // 添加到数据库
     await db
-      .prepare(
-        `
+        .prepare(
+            `
       INSERT INTO ${DbTables.S3_CONFIGS} (
         id, name, provider_type, endpoint_url, bucket_name, 
         region, access_key_id, secret_access_key, path_style, 
@@ -2410,23 +2410,23 @@ app.post("/api/s3-configs", authMiddleware, async (c) => {
         ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
     `
-      )
-      .bind(
-        id,
-        body.name,
-        body.provider_type,
-        body.endpoint_url,
-        body.bucket_name,
-        region,
-        encryptedAccessKey,
-        encryptedSecretKey,
-        pathStyle,
-        defaultFolder,
-        isPublic,
-        adminId,
-        totalStorageBytes
-      )
-      .run();
+        )
+        .bind(
+            id,
+            body.name,
+            body.provider_type,
+            body.endpoint_url,
+            body.bucket_name,
+            region,
+            encryptedAccessKey,
+            encryptedSecretKey,
+            pathStyle,
+            defaultFolder,
+            isPublic,
+            adminId,
+            totalStorageBytes
+        )
+        .run();
 
     // 返回创建成功响应（不包含敏感字段）
     return c.json({
@@ -2583,9 +2583,9 @@ app.put("/api/s3-configs/:id", authMiddleware, async (c) => {
 
     // 执行更新
     await db
-      .prepare(`UPDATE ${DbTables.S3_CONFIGS} SET ${updateFields.join(", ")} WHERE id = ? AND admin_id = ?`)
-      .bind(...params)
-      .run();
+        .prepare(`UPDATE ${DbTables.S3_CONFIGS} SET ${updateFields.join(", ")} WHERE id = ? AND admin_id = ?`)
+        .bind(...params)
+        .run();
 
     return c.json({
       code: ApiStatus.SUCCESS,
@@ -2614,14 +2614,14 @@ app.delete("/api/s3-configs/:id", authMiddleware, async (c) => {
 
     // 检查是否有文件使用此配置
     const filesCount = await db
-      .prepare(
-        `
+        .prepare(
+            `
         SELECT COUNT(*) as count FROM ${DbTables.FILES}
         WHERE s3_config_id = ?
       `
-      )
-      .bind(id)
-      .first();
+        )
+        .bind(id)
+        .first();
 
     if (filesCount && filesCount.count > 0) {
       return c.json(createErrorResponse(ApiStatus.CONFLICT, `无法删除此配置，因为有${filesCount.count}个文件正在使用它`), ApiStatus.CONFLICT);
@@ -2658,21 +2658,21 @@ app.put("/api/s3-configs/:id/set-default", authMiddleware, async (c) => {
     await db.batch([
       // 1. 首先将所有配置设置为非默认
       db
-        .prepare(
-          `UPDATE ${DbTables.S3_CONFIGS}
+          .prepare(
+              `UPDATE ${DbTables.S3_CONFIGS}
          SET is_default = 0, updated_at = CURRENT_TIMESTAMP
          WHERE admin_id = ?`
-        )
-        .bind(adminId),
+          )
+          .bind(adminId),
 
       // 2. 然后将当前配置设置为默认
       db
-        .prepare(
-          `UPDATE ${DbTables.S3_CONFIGS}
+          .prepare(
+              `UPDATE ${DbTables.S3_CONFIGS}
          SET is_default = 1, updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`
-        )
-        .bind(id),
+          )
+          .bind(id),
     ]);
 
     return c.json({
@@ -2695,14 +2695,14 @@ app.post("/api/s3-configs/:id/test", authMiddleware, async (c) => {
   try {
     // 获取S3配置
     const config = await db
-      .prepare(
-        `
+        .prepare(
+            `
         SELECT * FROM ${DbTables.S3_CONFIGS}
         WHERE id = ? AND admin_id = ?
       `
-      )
-      .bind(id, adminId)
-      .first();
+        )
+        .bind(id, adminId)
+        .first();
 
     if (!config) {
       return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "S3配置不存在"), ApiStatus.NOT_FOUND);
@@ -2815,15 +2815,15 @@ app.post("/api/s3-configs/:id/test", authMiddleware, async (c) => {
 
     // 更新最后使用时间
     await db
-      .prepare(
-        `
+        .prepare(
+            `
         UPDATE ${DbTables.S3_CONFIGS}
         SET last_used = ?
         WHERE id = ?
       `
-      )
-      .bind(getLocalTimeString(), id)
-      .run();
+        )
+        .bind(getLocalTimeString(), id)
+        .run();
 
     // 生成友好的测试结果消息
     let message = "S3配置测试";
@@ -2850,19 +2850,19 @@ app.post("/api/s3-configs/:id/test", authMiddleware, async (c) => {
   } catch (error) {
     console.error("测试S3配置错误:", error);
     return c.json(
-      {
-        code: ApiStatus.INTERNAL_ERROR,
-        message: error.message || "测试S3配置失败",
-        data: {
-          success: false,
-          result: {
-            error: error.message,
-            stack: process.env.NODE_ENV === "development" ? error.stack : null,
+        {
+          code: ApiStatus.INTERNAL_ERROR,
+          message: error.message || "测试S3配置失败",
+          data: {
+            success: false,
+            result: {
+              error: error.message,
+              stack: process.env.NODE_ENV === "development" ? error.stack : null,
+            },
           },
+          success: false,
         },
-        success: false,
-      },
-      ApiStatus.INTERNAL_ERROR
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });
@@ -2880,19 +2880,19 @@ app.post("/api/s3-configs/:id/test", authMiddleware, async (c) => {
  */
 async function getFileBySlug(db, slug, includePassword = true) {
   const fields = includePassword
-    ? "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.password, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy"
-    : "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy";
+      ? "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.password, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy"
+      : "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy";
 
   return await db
-    .prepare(
-      `
+      .prepare(
+          `
       SELECT ${fields}
       FROM ${DbTables.FILES} f
       WHERE f.slug = ?
     `
-    )
-    .bind(slug)
-    .first();
+      )
+      .bind(slug)
+      .first();
 }
 
 // 获取公开文件（无需认证）
@@ -3045,8 +3045,8 @@ app.get("/api/user/files", apiKeyFileMiddleware, async (c) => {
 
     // 获取用户文件列表
     const files = await db
-      .prepare(
-        `
+        .prepare(
+            `
         SELECT 
           f.id, f.filename, f.slug, f.storage_path, f.s3_url, 
           f.mimetype, f.size, f.remark, f.created_at, f.views,
@@ -3061,9 +3061,9 @@ app.get("/api/user/files", apiKeyFileMiddleware, async (c) => {
         ORDER BY f.created_at DESC
         LIMIT ? OFFSET ?
       `
-      )
-      .bind(`apikey:${apiKeyId}`, limit, offset)
-      .all();
+        )
+        .bind(`apikey:${apiKeyId}`, limit, offset)
+        .all();
 
     // 获取总数
     const countResult = await db.prepare(`SELECT COUNT(*) as total FROM ${DbTables.FILES} WHERE created_by = ?`).bind(`apikey:${apiKeyId}`).first();
@@ -3072,23 +3072,23 @@ app.get("/api/user/files", apiKeyFileMiddleware, async (c) => {
 
     // 处理文件信息，包括密码
     let processedFiles = await Promise.all(
-      files.results.map(async (file) => {
-        const result = { ...file };
+        files.results.map(async (file) => {
+          const result = { ...file };
 
-        // 确保has_password是布尔类型
-        result.has_password = !!result.has_password;
+          // 确保has_password是布尔类型
+          result.has_password = !!result.has_password;
 
-        // 如果文件有密码保护，获取明文密码
-        if (result.has_password) {
-          const passwordEntry = await db.prepare(`SELECT plain_password FROM ${DbTables.FILE_PASSWORDS} WHERE file_id = ?`).bind(result.id).first();
+          // 如果文件有密码保护，获取明文密码
+          if (result.has_password) {
+            const passwordEntry = await db.prepare(`SELECT plain_password FROM ${DbTables.FILE_PASSWORDS} WHERE file_id = ?`).bind(result.id).first();
 
-          if (passwordEntry && passwordEntry.plain_password) {
-            result.plain_password = passwordEntry.plain_password;
+            if (passwordEntry && passwordEntry.plain_password) {
+              result.plain_password = passwordEntry.plain_password;
+            }
           }
-        }
 
-        return result;
-      })
+          return result;
+        })
     );
 
     // 为API密钥创建者添加密钥名称
@@ -3155,8 +3155,8 @@ app.get("/api/user/files/:id", apiKeyFileMiddleware, async (c) => {
   try {
     // 查询文件详情
     const file = await db
-      .prepare(
-        `
+        .prepare(
+            `
         SELECT 
           f.id, f.filename, f.slug, f.storage_path, f.s3_url, 
           f.mimetype, f.size, f.remark, f.created_at, f.views,
@@ -3169,9 +3169,9 @@ app.get("/api/user/files/:id", apiKeyFileMiddleware, async (c) => {
         LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
         WHERE f.id = ? AND f.created_by = ?
       `
-      )
-      .bind(id, `apikey:${apiKeyId}`)
-      .first();
+        )
+        .bind(id, `apikey:${apiKeyId}`)
+        .first();
 
     if (!file) {
       return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或无权访问"), ApiStatus.NOT_FOUND);
@@ -3221,16 +3221,16 @@ app.delete("/api/user/files/:id", apiKeyFileMiddleware, async (c) => {
   try {
     // 查询文件详情，确保是API密钥用户自己的文件
     const file = await db
-      .prepare(
-        `
+        .prepare(
+            `
         SELECT f.*, s.*
         FROM ${DbTables.FILES} f
         LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
         WHERE f.id = ? AND f.created_by = ?
       `
-      )
-      .bind(id, `apikey:${apiKeyId}`)
-      .first();
+        )
+        .bind(id, `apikey:${apiKeyId}`)
+        .first();
 
     if (!file) {
       return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或无权删除"), ApiStatus.NOT_FOUND);
@@ -3345,9 +3345,9 @@ app.put("/api/user/files/:id", apiKeyFileMiddleware, async (c) => {
         } else {
           // 插入新的密码记录
           await db
-            .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, ?, ?)`)
-            .bind(id, body.password, new Date().toISOString(), new Date().toISOString())
-            .run();
+              .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, ?, ?)`)
+              .bind(id, body.password, new Date().toISOString(), new Date().toISOString())
+              .run();
         }
       } else {
         // 明确提供了空密码，表示要清除密码
@@ -3374,15 +3374,15 @@ app.put("/api/user/files/:id", apiKeyFileMiddleware, async (c) => {
 
     // 执行更新
     await db
-      .prepare(
-        `
+        .prepare(
+            `
         UPDATE ${DbTables.FILES}
         SET ${updateFields.join(", ")}
         WHERE id = ? AND created_by = ?
       `
-      )
-      .bind(...bindParams)
-      .run();
+        )
+        .bind(...bindParams)
+        .run();
 
     return c.json({
       code: ApiStatus.SUCCESS,
@@ -3451,9 +3451,9 @@ app.get("/api/admin/files", authMiddleware, async (c) => {
     queryParams.push(limit, offset);
 
     const files = await db
-      .prepare(filesQuery)
-      .bind(...queryParams)
-      .all();
+        .prepare(filesQuery)
+        .bind(...queryParams)
+        .all();
 
     // 查询总数
     const countQuery = `
@@ -3463,9 +3463,9 @@ app.get("/api/admin/files", authMiddleware, async (c) => {
     `;
 
     const countResult = await db
-      .prepare(countQuery)
-      .bind(...queryParams.slice(0, -2))
-      .first();
+        .prepare(countQuery)
+        .bind(...queryParams.slice(0, -2))
+        .first();
     const total = countResult.total;
 
     // 处理查询结果，为API密钥创建者添加密钥名称
@@ -3545,8 +3545,8 @@ app.get("/api/admin/files/:id", authMiddleware, async (c) => {
   try {
     // 查询文件详情
     const file = await db
-      .prepare(
-        `
+        .prepare(
+            `
         SELECT 
           f.id, f.filename, f.slug, f.storage_path, f.s3_url, 
           f.mimetype, f.size, f.remark, f.created_at, f.updated_at,
@@ -3560,9 +3560,9 @@ app.get("/api/admin/files/:id", authMiddleware, async (c) => {
         LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
         WHERE f.id = ?
       `
-      )
-      .bind(id)
-      .first();
+        )
+        .bind(id)
+        .first();
 
     if (!file) {
       return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在"), ApiStatus.NOT_FOUND);
@@ -3606,16 +3606,16 @@ app.delete("/api/admin/files/:id", authMiddleware, async (c) => {
   try {
     // 查询文件详情
     const file = await db
-      .prepare(
-        `
+        .prepare(
+            `
         SELECT f.*, s.*
         FROM ${DbTables.FILES} f
         LEFT JOIN ${DbTables.S3_CONFIGS} s ON f.s3_config_id = s.id
         WHERE f.id = ?
       `
-      )
-      .bind(id)
-      .first();
+        )
+        .bind(id)
+        .first();
 
     if (!file) {
       return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在"), ApiStatus.NOT_FOUND);
@@ -3729,9 +3729,9 @@ app.put("/api/admin/files/:id", authMiddleware, async (c) => {
         } else {
           // 插入新的密码记录
           await db
-            .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, ?, ?)`)
-            .bind(id, body.password, new Date().toISOString(), new Date().toISOString())
-            .run();
+              .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, ?, ?)`)
+              .bind(id, body.password, new Date().toISOString(), new Date().toISOString())
+              .run();
         }
       } else {
         // 明确提供了空密码，表示要清除密码
@@ -3757,15 +3757,15 @@ app.put("/api/admin/files/:id", authMiddleware, async (c) => {
 
     // 执行更新
     await db
-      .prepare(
-        `
+        .prepare(
+            `
         UPDATE ${DbTables.FILES}
         SET ${updateFields.join(", ")}
         WHERE id = ?
       `
-      )
-      .bind(...bindParams)
-      .run();
+        )
+        .bind(...bindParams)
+        .run();
 
     return c.json({
       code: ApiStatus.SUCCESS,
@@ -3815,15 +3815,15 @@ app.post("/api/paste", async (c) => {
 
     // 查询数据库中的API密钥记录
     const keyRecord = await db
-      .prepare(
-        `
+        .prepare(
+            `
       SELECT id, name, text_permission, expires_at
       FROM ${DbTables.API_KEYS}
       WHERE key = ?
     `
-      )
-      .bind(apiKey)
-      .first();
+        )
+        .bind(apiKey)
+        .first();
 
     // 如果密钥存在且有文本权限
     if (keyRecord && keyRecord.text_permission === 1) {
@@ -3835,15 +3835,15 @@ app.post("/api/paste", async (c) => {
 
         // 更新最后使用时间
         await db
-          .prepare(
-            `
+            .prepare(
+                `
           UPDATE ${DbTables.API_KEYS}
           SET last_used = ?
           WHERE id = ?
         `
-          )
-          .bind(getLocalTimeString(), keyRecord.id)
-          .run();
+            )
+            .bind(getLocalTimeString(), keyRecord.id)
+            .run();
       }
     }
   }
@@ -3879,16 +3879,16 @@ app.post("/api/paste", async (c) => {
 
     // 插入数据库
     await db
-      .prepare(
-        `
+        .prepare(
+            `
       INSERT INTO ${DbTables.PASTES} (
         id, slug, content, remark, password, 
         expires_at, max_views, created_by, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `
-      )
-      .bind(pasteId, slug, body.content, body.remark || null, passwordHash, body.expiresAt || null, body.maxViews || null, createdBy)
-      .run();
+        )
+        .bind(pasteId, slug, body.content, body.remark || null, passwordHash, body.expiresAt || null, body.maxViews || null, createdBy)
+        .run();
 
     // 返回创建结果
     return c.json({
@@ -3918,15 +3918,15 @@ app.get("/api/paste/:slug", async (c) => {
 
   // 查询paste
   const paste = await db
-    .prepare(
-      `
+      .prepare(
+          `
     SELECT id, slug, content, remark, password IS NOT NULL as has_password,
     expires_at, max_views, views, created_at, updated_at, created_by
     FROM ${DbTables.PASTES} WHERE slug = ?
   `
-    )
-    .bind(slug)
-    .first();
+      )
+      .bind(slug)
+      .first();
 
   // 如果不存在则返回404
   if (!paste) {
@@ -3984,15 +3984,15 @@ app.post("/api/paste/:slug", async (c) => {
 
   // 查询paste（需要获取密码进行验证）
   const paste = await db
-    .prepare(
-      `
+      .prepare(
+          `
     SELECT id, slug, content, remark, password,
     expires_at, max_views, views, created_at, updated_at, created_by
     FROM ${DbTables.PASTES} WHERE slug = ?
   `
-    )
-    .bind(slug)
-    .first();
+      )
+      .bind(slug)
+      .first();
 
   // 如果不存在则返回404
   if (!paste) {
@@ -4059,8 +4059,8 @@ app.get("/api/user/pastes", apiKeyTextMiddleware, async (c) => {
 
     // 查询文本分享记录
     const pastes = await db
-      .prepare(
-        `
+        .prepare(
+            `
       SELECT id, slug, content, remark, password IS NOT NULL as has_password,
       expires_at, max_views, views, created_at, updated_at, created_by
       FROM ${DbTables.PASTES}
@@ -4068,9 +4068,9 @@ app.get("/api/user/pastes", apiKeyTextMiddleware, async (c) => {
       ORDER BY created_at DESC
       LIMIT ? OFFSET ?
     `
-      )
-      .bind(`apikey:${apiKeyId}`, limit, offset)
-      .all();
+        )
+        .bind(`apikey:${apiKeyId}`, limit, offset)
+        .all();
 
     // 查询总数
     const countResult = await db.prepare(`SELECT COUNT(*) as total FROM ${DbTables.PASTES} WHERE created_by = ?`).bind(`apikey:${apiKeyId}`).first();
@@ -4139,8 +4139,8 @@ app.get("/api/user/pastes/:id", apiKeyTextMiddleware, async (c) => {
   try {
     // 获取用户自己创建的文本
     const paste = await db
-      .prepare(
-        `
+        .prepare(
+            `
         SELECT 
           id, slug, content, remark,
           password IS NOT NULL as has_password,
@@ -4148,9 +4148,9 @@ app.get("/api/user/pastes/:id", apiKeyTextMiddleware, async (c) => {
         FROM ${DbTables.PASTES}
         WHERE id = ? AND created_by = ?
       `
-      )
-      .bind(id, `apikey:${apiKeyId}`)
-      .first();
+        )
+        .bind(id, `apikey:${apiKeyId}`)
+        .first();
 
     if (!paste) {
       return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文本不存在或无权访问"), ApiStatus.NOT_FOUND);
@@ -4232,9 +4232,9 @@ app.delete("/api/user/pastes", apiKeyTextMiddleware, async (c) => {
 
     // 执行批量删除（只删除属于该API密钥用户的文本）
     const result = await db
-      .prepare(`DELETE FROM ${DbTables.PASTES} WHERE id IN (${placeholders}) AND created_by = ?`)
-      .bind(...bindParams)
-      .run();
+        .prepare(`DELETE FROM ${DbTables.PASTES} WHERE id IN (${placeholders}) AND created_by = ?`)
+        .bind(...bindParams)
+        .run();
 
     const deletedCount = result.changes || 0;
 
@@ -4259,9 +4259,9 @@ app.put("/api/user/pastes/:slug", apiKeyTextMiddleware, async (c) => {
   try {
     // 检查分享是否存在且属于该API密钥用户
     const paste = await db
-      .prepare(`SELECT id, slug, expires_at, max_views, views FROM ${DbTables.PASTES} WHERE slug = ? AND created_by = ?`)
-      .bind(slug, `apikey:${apiKeyId}`)
-      .first();
+        .prepare(`SELECT id, slug, expires_at, max_views, views FROM ${DbTables.PASTES} WHERE slug = ? AND created_by = ?`)
+        .bind(slug, `apikey:${apiKeyId}`)
+        .first();
 
     if (!paste) {
       return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文本不存在或无权修改"), ApiStatus.NOT_FOUND);
@@ -4329,8 +4329,8 @@ app.put("/api/user/pastes/:slug", apiKeyTextMiddleware, async (c) => {
 
     // 执行更新
     await db
-      .prepare(
-        `UPDATE ${DbTables.PASTES} 
+        .prepare(
+            `UPDATE ${DbTables.PASTES} 
        SET ${passwordSql}
            ${slugSql}
            ${viewsResetSQL}
@@ -4340,9 +4340,9 @@ app.put("/api/user/pastes/:slug", apiKeyTextMiddleware, async (c) => {
            max_views = ?,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
-      )
-      .bind(...sqlParams)
-      .run();
+        )
+        .bind(...sqlParams)
+        .run();
 
     return c.json({
       code: ApiStatus.SUCCESS,
@@ -4409,16 +4409,16 @@ app.get("/api/admin/pastes", authMiddleware, async (c) => {
   // 获取总数（包括所有内容，根据筛选条件过滤）
   const countParams = createdBy ? [createdBy] : [];
   const countResult = await db
-    .prepare(countSql)
-    .bind(...countParams)
-    .first();
+      .prepare(countSql)
+      .bind(...countParams)
+      .first();
   const total = countResult.total;
 
   // 查询分页数据，加入内容字段并做截断处理
   const pastes = await db
-    .prepare(querySql)
-    .bind(...queryParams)
-    .all();
+      .prepare(querySql)
+      .bind(...queryParams)
+      .all();
 
   // 处理查询结果，为API密钥创建者添加密钥名称
   let results = pastes.results;
@@ -4521,9 +4521,9 @@ app.delete("/api/admin/pastes", authMiddleware, async (c) => {
 
   // 执行批量删除
   const result = await db
-    .prepare(`DELETE FROM ${DbTables.PASTES} WHERE id IN (${placeholders})`)
-    .bind(...ids)
-    .run();
+      .prepare(`DELETE FROM ${DbTables.PASTES} WHERE id IN (${placeholders})`)
+      .bind(...ids)
+      .run();
 
   deletedCount = result.changes || ids.length;
 
@@ -4608,8 +4608,8 @@ app.put("/api/admin/pastes/:slug", authMiddleware, async (c) => {
 
   // 执行更新
   await db
-    .prepare(
-      `UPDATE ${DbTables.PASTES} 
+      .prepare(
+          `UPDATE ${DbTables.PASTES} 
        SET ${passwordSql}
            ${slugSql}
            ${viewsResetSQL}
@@ -4619,9 +4619,9 @@ app.put("/api/admin/pastes/:slug", authMiddleware, async (c) => {
            max_views = ?,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`
-    )
-    .bind(...sqlParams)
-    .run();
+      )
+      .bind(...sqlParams)
+      .run();
 
   return c.json({
     code: ApiStatus.SUCCESS,
@@ -4641,8 +4641,8 @@ app.get("/api/admin/pastes/:id", authMiddleware, async (c) => {
   try {
     // 管理员可以查看任何文本
     const paste = await db
-      .prepare(
-        `
+        .prepare(
+            `
         SELECT 
           id, slug, content, remark,
           password IS NOT NULL as has_password,
@@ -4650,9 +4650,9 @@ app.get("/api/admin/pastes/:id", authMiddleware, async (c) => {
         FROM ${DbTables.PASTES}
         WHERE id = ?
       `
-      )
-      .bind(id)
-      .first();
+        )
+        .bind(id)
+        .first();
 
     if (!paste) {
       return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文本不存在"), ApiStatus.NOT_FOUND);
@@ -4718,15 +4718,15 @@ app.post("/api/s3/presign", async (c) => {
 
     // 查询数据库中的API密钥记录
     const keyRecord = await db
-      .prepare(
-        `
+        .prepare(
+            `
         SELECT id, name, file_permission, expires_at
         FROM ${DbTables.API_KEYS}
         WHERE key = ?
       `
-      )
-      .bind(apiKey)
-      .first();
+        )
+        .bind(apiKey)
+        .first();
 
     // 如果密钥存在且有文件权限
     if (keyRecord && keyRecord.file_permission === 1) {
@@ -4739,15 +4739,15 @@ app.post("/api/s3/presign", async (c) => {
 
         // 更新最后使用时间
         await db
-          .prepare(
-            `
+            .prepare(
+                `
             UPDATE ${DbTables.API_KEYS}
             SET last_used = ?
             WHERE id = ?
           `
-          )
-          .bind(getLocalTimeString(), keyRecord.id)
-          .run();
+            )
+            .bind(getLocalTimeString(), keyRecord.id)
+            .run();
       }
     }
   }
@@ -4772,13 +4772,13 @@ app.post("/api/s3/presign", async (c) => {
 
     // 获取系统最大上传限制
     const maxUploadSizeResult = await db
-      .prepare(
-        `
+        .prepare(
+            `
         SELECT value FROM ${DbTables.SYSTEM_SETTINGS}
         WHERE key = 'max_upload_size'
       `
-      )
-      .first();
+        )
+        .first();
 
     const maxUploadSizeMB = maxUploadSizeResult ? parseInt(maxUploadSizeResult.value) : DEFAULT_MAX_UPLOAD_SIZE_MB;
     const maxUploadSizeBytes = maxUploadSizeMB * 1024 * 1024;
@@ -4786,21 +4786,21 @@ app.post("/api/s3/presign", async (c) => {
     // 如果请求中包含了文件大小，则检查大小是否超过限制
     if (body.size && body.size > maxUploadSizeBytes) {
       return c.json(
-        createErrorResponse(ApiStatus.BAD_REQUEST, `文件大小超过系统限制，最大允许 ${formatFileSize(maxUploadSizeBytes)}，当前文件 ${formatFileSize(body.size)}`),
-        ApiStatus.BAD_REQUEST
+          createErrorResponse(ApiStatus.BAD_REQUEST, `文件大小超过系统限制，最大允许 ${formatFileSize(maxUploadSizeBytes)}，当前文件 ${formatFileSize(body.size)}`),
+          ApiStatus.BAD_REQUEST
       );
     }
 
     // 获取S3配置
     const s3Config = await db
-      .prepare(
-        `
+        .prepare(
+            `
         SELECT * FROM ${DbTables.S3_CONFIGS}
         WHERE id = ?
       `
-      )
-      .bind(body.s3_config_id)
-      .first();
+        )
+        .bind(body.s3_config_id)
+        .first();
 
     if (!s3Config) {
       return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "指定的S3配置不存在"), ApiStatus.NOT_FOUND);
@@ -4810,15 +4810,15 @@ app.post("/api/s3/presign", async (c) => {
     if (body.size && s3Config.total_storage_bytes !== null) {
       // 获取当前存储桶已使用的总容量
       const usageResult = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT SUM(size) as total_used
           FROM ${DbTables.FILES}
           WHERE s3_config_id = ?
         `
-        )
-        .bind(body.s3_config_id)
-        .first();
+          )
+          .bind(body.s3_config_id)
+          .first();
 
       const currentUsage = usageResult?.total_used || 0;
       const fileSize = parseInt(body.size);
@@ -4834,8 +4834,8 @@ app.post("/api/s3/presign", async (c) => {
         const formattedTotal = formatFileSize(s3Config.total_storage_bytes);
 
         return c.json(
-          createErrorResponse(ApiStatus.BAD_REQUEST, `存储空间不足。文件大小(${formattedFileSize})超过剩余空间(${formattedRemaining})。存储桶总容量限制为${formattedTotal}。`),
-          ApiStatus.BAD_REQUEST
+            createErrorResponse(ApiStatus.BAD_REQUEST, `存储空间不足。文件大小(${formattedFileSize})超过剩余空间(${formattedRemaining})。存储桶总容量限制为${formattedTotal}。`),
+            ApiStatus.BAD_REQUEST
         );
       }
     }
@@ -4889,8 +4889,8 @@ app.post("/api/s3/presign", async (c) => {
     const s3_url = buildS3Url(s3Config, storagePath);
 
     await db
-      .prepare(
-        `
+        .prepare(
+            `
         INSERT INTO ${DbTables.FILES} (
           id, slug, filename, storage_path, s3_url, 
           s3_config_id, mimetype, size, etag,
@@ -4901,22 +4901,22 @@ app.post("/api/s3/presign", async (c) => {
           ?, ?, ?
         )
       `
-      )
-      .bind(
-        fileId,
-        slug,
-        body.filename,
-        storagePath,
-        s3_url,
-        body.s3_config_id,
-        mimetype,
-        0, // 初始大小为0，在上传完成后更新
-        null, // 初始ETag为null，在上传完成后更新
-        authorizedBy === "admin" ? adminId : authorizedBy === "apikey" ? `apikey:${apiKeyId}` : null, // 使用与传统上传一致的格式标记API密钥用户
-        getLocalTimeString(), // 使用本地时间
-        getLocalTimeString() // 使用本地时间
-      )
-      .run();
+        )
+        .bind(
+            fileId,
+            slug,
+            body.filename,
+            storagePath,
+            s3_url,
+            body.s3_config_id,
+            mimetype,
+            0, // 初始大小为0，在上传完成后更新
+            null, // 初始ETag为null，在上传完成后更新
+            authorizedBy === "admin" ? adminId : authorizedBy === "apikey" ? `apikey:${apiKeyId}` : null, // 使用与传统上传一致的格式标记API密钥用户
+            getLocalTimeString(), // 使用本地时间
+            getLocalTimeString() // 使用本地时间
+        )
+        .run();
 
     // 返回预签名URL和文件信息
     return c.json({
@@ -4968,15 +4968,15 @@ app.post("/api/s3/commit", async (c) => {
 
     // 查询数据库中的API密钥记录
     const keyRecord = await db
-      .prepare(
-        `
+        .prepare(
+            `
         SELECT id, name, file_permission, expires_at
         FROM ${DbTables.API_KEYS}
         WHERE key = ?
       `
-      )
-      .bind(apiKey)
-      .first();
+        )
+        .bind(apiKey)
+        .first();
 
     // 如果密钥存在且有文件权限
     if (keyRecord && keyRecord.file_permission === 1) {
@@ -4989,15 +4989,15 @@ app.post("/api/s3/commit", async (c) => {
 
         // 更新最后使用时间
         await db
-          .prepare(
-            `
+            .prepare(
+                `
             UPDATE ${DbTables.API_KEYS}
             SET last_used = ?
             WHERE id = ?
           `
-          )
-          .bind(getLocalTimeString(), keyRecord.id)
-          .run();
+            )
+            .bind(getLocalTimeString(), keyRecord.id)
+            .run();
       }
     }
   }
@@ -5021,15 +5021,15 @@ app.post("/api/s3/commit", async (c) => {
 
     // 查询待提交的文件信息
     const file = await db
-      .prepare(
-        `
+        .prepare(
+            `
         SELECT id, filename, storage_path, s3_config_id, size, s3_url, slug, created_by
         FROM ${DbTables.FILES}
         WHERE id = ?
       `
-      )
-      .bind(body.file_id)
-      .first();
+        )
+        .bind(body.file_id)
+        .first();
 
     if (!file) {
       return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文件不存在或已被删除"), ApiStatus.NOT_FOUND);
@@ -5046,13 +5046,13 @@ app.post("/api/s3/commit", async (c) => {
 
     // 获取S3配置
     const s3ConfigQuery =
-      authorizedBy === "admin" ? `SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ? AND admin_id = ?` : `SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ? AND is_public = 1`;
+        authorizedBy === "admin" ? `SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ? AND admin_id = ?` : `SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ? AND is_public = 1`;
 
     const s3ConfigParams = authorizedBy === "admin" ? [file.s3_config_id, adminId] : [file.s3_config_id];
     const s3Config = await db
-      .prepare(s3ConfigQuery)
-      .bind(...s3ConfigParams)
-      .first();
+        .prepare(s3ConfigQuery)
+        .bind(...s3ConfigParams)
+        .first();
 
     if (!s3Config) {
       return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "无效的S3配置ID或无权访问该配置"), ApiStatus.BAD_REQUEST);
@@ -5062,15 +5062,15 @@ app.post("/api/s3/commit", async (c) => {
     if (s3Config.total_storage_bytes !== null) {
       // 获取当前存储桶已使用的总容量（不包括当前待提交的文件）
       const usageResult = await db
-        .prepare(
-          `
+          .prepare(
+              `
           SELECT SUM(size) as total_used
           FROM ${DbTables.FILES}
           WHERE s3_config_id = ? AND id != ?
         `
-        )
-        .bind(file.s3_config_id, file.id)
-        .first();
+          )
+          .bind(file.s3_config_id, file.id)
+          .first();
 
       const currentUsage = usageResult?.total_used || 0;
       const fileSize = file.size;
@@ -5097,8 +5097,8 @@ app.post("/api/s3/commit", async (c) => {
         const formattedTotal = formatFileSize(s3Config.total_storage_bytes);
 
         return c.json(
-          createErrorResponse(ApiStatus.BAD_REQUEST, `存储空间不足。文件大小(${formattedFileSize})超过剩余空间(${formattedRemaining})。存储桶总容量限制为${formattedTotal}。`),
-          ApiStatus.BAD_REQUEST
+            createErrorResponse(ApiStatus.BAD_REQUEST, `存储空间不足。文件大小(${formattedFileSize})超过剩余空间(${formattedRemaining})。存储桶总容量限制为${formattedTotal}。`),
+            ApiStatus.BAD_REQUEST
         );
       }
     }
@@ -5142,8 +5142,8 @@ app.post("/api/s3/commit", async (c) => {
 
     // 更新文件记录
     await db
-      .prepare(
-        `
+        .prepare(
+            `
         UPDATE ${DbTables.FILES}
         SET 
           etag = ?, 
@@ -5156,25 +5156,42 @@ app.post("/api/s3/commit", async (c) => {
           size = CASE WHEN ? IS NOT NULL THEN ? ELSE size END
         WHERE id = ?
       `
-      )
-      .bind(
-        body.etag,
-        creator,
-        remark,
-        passwordHash,
-        expiresAt,
-        maxViews,
-        now,
-        fileSize !== null ? 1 : null, // 条件参数
-        fileSize, // 文件大小值
-        body.file_id
-      )
-      .run();
+        )
+        .bind(
+            body.etag,
+            creator,
+            remark,
+            passwordHash,
+            expiresAt,
+            maxViews,
+            now,
+            fileSize !== null ? 1 : null, // 条件参数
+            fileSize, // 文件大小值
+            body.file_id
+        )
+        .run();
+
+    // 处理明文密码保存
+    if (body.password) {
+      // 检查是否已存在密码记录
+      const passwordExists = await db.prepare(`SELECT file_id FROM ${DbTables.FILE_PASSWORDS} WHERE file_id = ?`).bind(body.file_id).first();
+
+      if (passwordExists) {
+        // 更新现有密码
+        await db.prepare(`UPDATE ${DbTables.FILE_PASSWORDS} SET plain_password = ?, updated_at = ? WHERE file_id = ?`).bind(body.password, now, body.file_id).run();
+      } else {
+        // 插入新密码
+        await db
+            .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, ?, ?)`)
+            .bind(body.file_id, body.password, now, now)
+            .run();
+      }
+    }
 
     // 获取更新后的文件记录
     const updatedFile = await db
-      .prepare(
-        `
+        .prepare(
+            `
         SELECT 
           id, slug, filename, storage_path, s3_url, 
           mimetype, size, remark, 
@@ -5182,9 +5199,9 @@ app.post("/api/s3/commit", async (c) => {
         FROM ${DbTables.FILES}
         WHERE id = ?
       `
-      )
-      .bind(body.file_id)
-      .first();
+        )
+        .bind(body.file_id)
+        .first();
 
     // 返回成功响应
     return c.json({
@@ -5216,14 +5233,14 @@ app.get("/api/admin/system-settings", authMiddleware, async (c) => {
   try {
     // 获取所有系统设置
     const settings = await db
-      .prepare(
-        `
+        .prepare(
+            `
       SELECT key, value, description, updated_at
       FROM ${DbTables.SYSTEM_SETTINGS}
       ORDER BY key ASC
     `
-      )
-      .all();
+        )
+        .all();
 
     return c.json({
       code: ApiStatus.SUCCESS,
@@ -5260,14 +5277,14 @@ app.put("/api/admin/system-settings", authMiddleware, async (c) => {
 
       // 更新数据库
       await db
-        .prepare(
-          `
+          .prepare(
+              `
         INSERT OR REPLACE INTO ${DbTables.SYSTEM_SETTINGS} (key, value, description, updated_at)
         VALUES ('max_upload_size', ?, '单次最大上传文件大小限制', datetime('now'))
       `
-        )
-        .bind(maxUploadSize.toString())
-        .run();
+          )
+          .bind(maxUploadSize.toString())
+          .run();
     }
 
     return c.json({
@@ -5288,13 +5305,13 @@ app.get("/api/system/max-upload-size", async (c) => {
   try {
     // 获取最大上传大小设置
     const maxUploadSize = await db
-      .prepare(
-        `
+        .prepare(
+            `
       SELECT value FROM ${DbTables.SYSTEM_SETTINGS}
       WHERE key = 'max_upload_size'
     `
-      )
-      .first();
+        )
+        .first();
 
     // 返回默认值或数据库中的值
     const size = maxUploadSize ? parseInt(maxUploadSize.value) : DEFAULT_MAX_UPLOAD_SIZE_MB;
@@ -5447,17 +5464,17 @@ export default {
 
       // 兼容前端期望的错误格式
       return new Response(
-        JSON.stringify({
-          code: ApiStatus.INTERNAL_ERROR,
-          message: "服务器内部错误",
-          error: error.message,
-          success: false,
-          data: null,
-        }),
-        {
-          status: ApiStatus.INTERNAL_ERROR,
-          headers: { "Content-Type": "application/json" },
-        }
+          JSON.stringify({
+            code: ApiStatus.INTERNAL_ERROR,
+            message: "服务器内部错误",
+            error: error.message,
+            success: false,
+            data: null,
+          }),
+          {
+            status: ApiStatus.INTERNAL_ERROR,
+            headers: { "Content-Type": "application/json" },
+          }
       );
     }
   },
