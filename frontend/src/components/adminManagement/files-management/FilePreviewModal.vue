@@ -116,9 +116,9 @@
             </div>
 
             <button
-              @click="$emit('close')"
-              class="px-4 py-2 rounded-md text-sm font-medium transition-colors"
-              :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
+                @click="$emit('close')"
+                class="px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'"
             >
               关闭
             </button>
@@ -149,6 +149,43 @@ defineEmits(["close"]);
 const baseUrl = computed(() => {
   return window.location.origin;
 });
+
+/**
+ * 辅助函数：获取文件密码
+ * 从多个可能的来源获取密码
+ */
+const getFilePassword = () => {
+  // 优先使用文件信息中存储的明文密码
+  if (props.file.plain_password) {
+    return props.file.plain_password;
+  }
+
+  // 其次检查当前密码字段
+  if (props.file.currentPassword) {
+    return props.file.currentPassword;
+  }
+
+  // 尝试从URL获取密码参数
+  const currentUrl = new URL(window.location.href);
+  const passwordParam = currentUrl.searchParams.get("password");
+  if (passwordParam) {
+    return passwordParam;
+  }
+
+  // 最后尝试从会话存储中获取密码
+  try {
+    if (props.file.slug) {
+      const sessionPassword = sessionStorage.getItem(`file_password_${props.file.slug}`);
+      if (sessionPassword) {
+        return sessionPassword;
+      }
+    }
+  } catch (err) {
+    console.error("从会话存储获取密码出错:", err);
+  }
+
+  return null;
+};
 
 /**
  * 格式化文件大小
@@ -189,14 +226,17 @@ const formatDateTime = (dateString) => {
 const getPermanentDownloadUrl = computed(() => {
   if (!props.file.slug) return "";
 
+  // 获取文件密码
+  const filePassword = getFilePassword();
+
   // 检查文件是否有urls对象和代理URL
   if (props.file.urls && props.file.urls.proxyDownloadUrl) {
     // 使用后端返回的代理URL，始终采用worker代理，不受use_proxy影响
     let url = props.file.urls.proxyDownloadUrl;
 
-    // 如果文件有密码保护，则获取明文密码并附加到URL
-    if (props.file.has_password && props.file.plain_password && !url.includes("password=")) {
-      url += url.includes("?") ? `&password=${encodeURIComponent(props.file.plain_password)}` : `?password=${encodeURIComponent(props.file.plain_password)}`;
+    // 如果有密码保护且URL中没有密码参数，则添加密码
+    if (props.file.has_password && filePassword && !url.includes("password=")) {
+      url += url.includes("?") ? `&password=${encodeURIComponent(filePassword)}` : `?password=${encodeURIComponent(filePassword)}`;
     }
 
     return url;
@@ -205,9 +245,9 @@ const getPermanentDownloadUrl = computed(() => {
   // 如果没有urls对象，则回退到前端构建URL
   let url = `${baseUrl.value}/api/file-download/${props.file.slug}`;
 
-  // 如果文件有密码保护，则获取明文密码并附加到URL
-  if (props.file.has_password && props.file.plain_password) {
-    url += `?password=${encodeURIComponent(props.file.plain_password)}`;
+  // 如果有密码保护，则添加密码参数
+  if (props.file.has_password && filePassword) {
+    url += `?password=${encodeURIComponent(filePassword)}`;
   }
 
   return url;
@@ -219,14 +259,17 @@ const getPermanentDownloadUrl = computed(() => {
 const getPermanentViewUrl = computed(() => {
   if (!props.file.slug) return "";
 
+  // 获取文件密码
+  const filePassword = getFilePassword();
+
   // 检查文件是否有urls对象和代理URL
   if (props.file.urls && props.file.urls.proxyPreviewUrl) {
     // 使用后端返回的代理URL，始终采用worker代理，不受use_proxy影响
     let url = props.file.urls.proxyPreviewUrl;
 
-    // 如果文件有密码保护，则获取明文密码并附加到URL
-    if (props.file.has_password && props.file.plain_password && !url.includes("password=")) {
-      url += url.includes("?") ? `&password=${encodeURIComponent(props.file.plain_password)}` : `?password=${encodeURIComponent(props.file.plain_password)}`;
+    // 如果有密码保护且URL中没有密码参数，则添加密码
+    if (props.file.has_password && filePassword && !url.includes("password=")) {
+      url += url.includes("?") ? `&password=${encodeURIComponent(filePassword)}` : `?password=${encodeURIComponent(filePassword)}`;
     }
 
     return url;
@@ -235,9 +278,9 @@ const getPermanentViewUrl = computed(() => {
   // 如果没有urls对象，则回退到前端构建URL
   let url = `${baseUrl.value}/api/file-view/${props.file.slug}`;
 
-  // 如果文件有密码保护，则获取明文密码并附加到URL
-  if (props.file.has_password && props.file.plain_password) {
-    url += `?password=${encodeURIComponent(props.file.plain_password)}`;
+  // 如果有密码保护，则添加密码参数
+  if (props.file.has_password && filePassword) {
+    url += `?password=${encodeURIComponent(filePassword)}`;
   }
 
   return url;
