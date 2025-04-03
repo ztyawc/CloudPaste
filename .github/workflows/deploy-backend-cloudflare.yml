@@ -56,7 +56,7 @@ jobs:
             DATABASE_ID=$EXISTING_DB
           else
             CREATE_OUTPUT=$(npx wrangler d1 create cloudpaste-db 2>&1)
-            
+          
             if echo "$CREATE_OUTPUT" | grep -q "Successfully created DB"; then
               DATABASE_ID=$(echo "$CREATE_OUTPUT" | grep -oP "database_id = \"\K[^\"]+")
               if [ -z "$DATABASE_ID" ]; then
@@ -65,7 +65,7 @@ jobs:
             else
               LIST_OUTPUT=$(npx wrangler d1 list --json 2>/dev/null || echo "[]")
               DATABASE_ID=$(echo "$LIST_OUTPUT" | jq -r '.[] | select(.name=="cloudpaste-db") | .uuid')
-              
+          
               if [ -z "$DATABASE_ID" ]; then
                 echo "❌ 无法创建或找到D1数据库"
                 exit 1
@@ -88,24 +88,30 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          if [[ -n "${{ secrets.ENCRYPTION_SECRET }}" ]]; then
-            ENCRYPTION_VALUE="${{ secrets.ENCRYPTION_SECRET }}"
-          else
-            ENCRYPTION_VALUE=$(openssl rand -base64 32)
-          fi
-
+          # 检查密钥是否已存在
           SECRET_EXISTS=$(npx wrangler secret list 2>&1 | grep -q "ENCRYPTION_SECRET" && echo "yes" || echo "no")
 
-          if [ "$SECRET_EXISTS" = "no" ]; then
+          if [ "$SECRET_EXISTS" = "yes" ]; then
+            echo "✅ ENCRYPTION_SECRET 已存在，跳过创建步骤"
+          else
+            # 如果不存在，则创建密钥
+            if [[ -n "${{ secrets.ENCRYPTION_SECRET }}" ]]; then
+              ENCRYPTION_VALUE="${{ secrets.ENCRYPTION_SECRET }}"
+            else
+              ENCRYPTION_VALUE=$(openssl rand -base64 32)
+            fi
+
             set +e
             echo "$ENCRYPTION_VALUE" | npx wrangler secret put ENCRYPTION_SECRET
             SECRET_RESULT=$?
             set -e
-            
-            if [ $SECRET_RESULT -ne 0 ] && ! npx wrangler secret list 2>&1 | grep -q "ENCRYPTION_SECRET"; then
+          
+            if [ $SECRET_RESULT -ne 0 ]; then
               echo "❌ 设置机密失败"
               exit 1
             fi
+          
+            echo "✅ ENCRYPTION_SECRET 已成功创建"
           fi
 
       - name: Deploy to Cloudflare Workers
