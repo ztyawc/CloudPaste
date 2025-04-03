@@ -88,28 +88,60 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          echo "检查ENCRYPTION_SECRET是否已存在..."
+          echo "检查ENCRYPTION_SECRET配置情况..."
 
-          # 保存列表命令的完整输出用于调试
-          SECRET_LIST_OUTPUT=$(npx wrangler secret list 2>&1)
-          echo "Secret列表输出 (部分屏蔽):"
-          echo "$SECRET_LIST_OUTPUT" | sed 's/"name"/"name"/g'
-
-          # 使用更可靠的方法检查密钥是否存在
-          if echo "$SECRET_LIST_OUTPUT" | grep -q "ENCRYPTION_SECRET"; then
-            echo "✅ ENCRYPTION_SECRET 已存在，跳过创建步骤"
-          else
-            echo "ENCRYPTION_SECRET 不存在，准备创建..."
+          # 1. 检查wrangler.toml中是否有硬编码的ENCRYPTION_SECRET
+          if grep -q "ENCRYPTION_SECRET =" wrangler.toml; then
+            echo "⚠️ 检测到wrangler.toml中存在硬编码的ENCRYPTION_SECRET"
+            echo "为确保GitHub Actions的密钥设置生效，将从wrangler.toml中移除硬编码密钥"
           
-            # 如果不存在，则创建密钥
-            if [[ -n "${{ secrets.ENCRYPTION_SECRET }}" ]]; then
-              echo "使用预定义的ENCRYPTION_SECRET值"
+            # 临时备份wrangler.toml
+            cp wrangler.toml wrangler.toml.bak
+          
+            # 移除硬编码的ENCRYPTION_SECRET行
+            sed -i '/ENCRYPTION_SECRET =/d' wrangler.toml
+          
+            echo "✅ 已从wrangler.toml中移除硬编码的ENCRYPTION_SECRET"
+          else
+            echo "✅ wrangler.toml中未检测到硬编码的ENCRYPTION_SECRET"
+          fi
+
+          # 2. 检查GitHub中是否已配置ENCRYPTION_SECRET
+          if [[ -n "${{ secrets.ENCRYPTION_SECRET }}" ]]; then
+            echo "✅ GitHub中已配置ENCRYPTION_SECRET"
+            GITHUB_HAS_SECRET=true
+          else
+            echo "⚠️ GitHub中未配置ENCRYPTION_SECRET"
+            GITHUB_HAS_SECRET=false
+          fi
+
+          # 3. 检查Worker中是否已存在ENCRYPTION_SECRET (作为secret变量)
+          set +e
+          SECRET_LIST_OUTPUT=$(npx wrangler secret list 2>&1)
+          set -e
+
+          if echo "$SECRET_LIST_OUTPUT" | grep -q "ENCRYPTION_SECRET"; then
+            echo "✅ Worker中已存在ENCRYPTION_SECRET(作为secret变量)"
+            WORKER_HAS_SECRET=true
+          else
+            echo "⚠️ Worker中未检测到ENCRYPTION_SECRET(作为secret变量)"
+            WORKER_HAS_SECRET=false
+          fi
+
+          # 如果Worker中已有密钥，则跳过创建
+          if [[ "$WORKER_HAS_SECRET" == "true" ]]; then
+            echo "✅ Worker中已存在ENCRYPTION_SECRET(作为secret变量)，跳过创建步骤"
+          else
+            # 确定要使用的密钥值
+            if [[ "$GITHUB_HAS_SECRET" == "true" ]]; then
+              echo "使用GitHub中配置的ENCRYPTION_SECRET值"
               ENCRYPTION_VALUE="${{ secrets.ENCRYPTION_SECRET }}"
             else
               echo "生成随机ENCRYPTION_SECRET值"
               ENCRYPTION_VALUE=$(openssl rand -base64 32)
             fi
-
+          
+            # 设置密钥到Worker
             set +e
             echo "正在设置ENCRYPTION_SECRET..."
             SECRET_PUT_OUTPUT=$(echo "$ENCRYPTION_VALUE" | npx wrangler secret put ENCRYPTION_SECRET 2>&1)
@@ -120,21 +152,25 @@ jobs:
             echo "$SECRET_PUT_OUTPUT" | grep -v "Please update to the latest version"
           
             if [ $SECRET_RESULT -ne 0 ]; then
-              # 检查错误消息是否包含"already in use"等表示密钥已存在的关键词
-              if echo "$SECRET_PUT_OUTPUT" | grep -q "already in use"; then
+              # 如果错误是由于密钥已存在导致的，视为成功
+              if echo "$SECRET_PUT_OUTPUT" | grep -q -E "(already in use|already exists|conflict)"; then
                 echo "⚠️ 密钥已存在于Worker中但未被列表命令检测到，继续执行"
               else
-                echo "❌ 设置密钥失败"
-                # 尝试最后检查一次是否因为密钥已存在而失败
-                if npx wrangler secret list 2>&1 | grep -q "ENCRYPTION_SECRET"; then
-                  echo "但密钥似乎已经存在，继续执行"
+                # 最后再检查一次是否因为密钥已存在但未被正确检测
+                set +e
+                FINAL_CHECK=$(npx wrangler secret list 2>&1)
+                set -e
+          
+                if echo "$FINAL_CHECK" | grep -q "ENCRYPTION_SECRET"; then
+                  echo "虽然设置密钥失败，但密钥似乎已存在于Worker中，继续执行"
                 else
-                  echo "密钥确实不存在，无法创建，退出"
+                  echo "❌ 设置密钥失败，且密钥确实不存在，退出部署"
+                  echo "详细错误信息: $SECRET_PUT_OUTPUT"
                   exit 1
                 fi
               fi
             else
-              echo "✅ ENCRYPTION_SECRET 已成功创建"
+              echo "✅ ENCRYPTION_SECRET 已成功创建(作为secret变量)"
             fi
           fi
 
