@@ -158,6 +158,8 @@ Deployment is automatically triggered whenever files in the `backend` directory 
 8. Automatically deploy Worker to Cloudflare
 9. Set up a custom domain to replace the original cf domain
 
+**<span style="color:red">⚠️ Security reminder: Please change the default administrator password immediately after system initialization (Username: admin, Password: admin123).</span>**
+
 ### Frontend Automated Deployment
 
 #### Cloudflare Pages（Recommendation）
@@ -250,9 +252,9 @@ cd CloudPaste/backend
    https://cloudpaste-backend.your-username.workers.dev
    ```
 
-   ⚠️ **Security Tip**: Please change the default administrator password immediately after system initialization (Username: admin, Password: admin123).
+**<span style="color:red">⚠️ Security reminder: Please change the default administrator password immediately after system initialization (Username: admin, Password: admin123).</span>**
 
-### Frontend Manual Deployment
+## Frontend Manual Deployment
 
 #### Cloudflare Pages
 
@@ -359,6 +361,7 @@ cd CloudPaste/backend
 3. Configure B2 cross-origin; B2 cross-origin configuration is more complex, take note
    ![B2cors](./images/B2/B2-3.png)
 4. You can try options 1 or 2 first, go to the upload page and see if you can upload. If F12 console shows cross-origin errors, use option 3. For a permanent solution, use option 3 directly.
+   
    ![B21](./images/B2/B2-4.png)
 
 Regarding option 3 configuration, since the panel cannot configure it, you need to configure manually by [downloading B2 CLI](https://www.backblaze.com/docs/cloud-storage-command-line-tools) tool.

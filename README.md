@@ -158,6 +158,8 @@ Fork 仓库，填好密钥，然后运行工作流
 8. 自动部署 Worker 到 Cloudflare
 9. 设置自定义域名代替cf原本的域名
 
+**<span style="color:red">⚠️ 安全提示：请在系统初始化后立即修改默认管理员密码（用户名: admin, 密码: admin123）。</span>**
+
 ### 前端自动部署
 
 #### Cloudflare Pages(推荐)
@@ -249,7 +251,7 @@ cd CloudPaste/backend
    https://cloudpaste-backend.your-username.workers.dev
    ```
 
-   ⚠️ **安全提示**：请在系统初始化后立即修改默认管理员密码（用户名: admin, 密码: admin123）。
+**<span style="color:red">⚠️ 安全提示：请在系统初始化后立即修改默认管理员密码（用户名: admin, 密码: admin123）。</span>**
 
 ### 前端手动部署
 
@@ -356,6 +358,7 @@ cd CloudPaste/backend
 3. 配置 B2 的跨域，B2 跨域配置比较麻烦，需注意
    ![B2cors](./images/B2/B2-3.png)
 4. 可以先尝试一下 1 或 2，去到上传页面看看是否能上传，F12 打开控制台若显示跨域错误，则使用3。要一劳永逸就直接使用3。
+   
    ![B21](./images/B2/B2-4.png) 
 
 关于 3 的配置由于面板无法配置，只能手动配置，需[下载 B2 CLI](https://www.backblaze.com/docs/cloud-storage-command-line-tools)对应工具。
