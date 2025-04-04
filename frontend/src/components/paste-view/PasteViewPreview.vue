@@ -39,28 +39,28 @@ const contentRendered = ref(false);
 
 // 监听暗色模式变化，当主题改变时重新渲染内容
 watch(
-  () => props.darkMode,
-  () => {
-    if (props.content) {
-      // 暗色模式变化时重新渲染
-      nextTick(() => {
-        renderContent(props.content);
-      });
+    () => props.darkMode,
+    () => {
+      if (props.content) {
+        // 暗色模式变化时重新渲染
+        nextTick(() => {
+          renderContent(props.content);
+        });
+      }
     }
-  }
 );
 
 // 监听内容变化，当内容改变时重新渲染
 watch(
-  () => props.content,
-  (newContent) => {
-    if (newContent) {
-      contentRendered.value = false;
-      nextTick(() => {
-        renderContent(newContent);
-      });
+    () => props.content,
+    (newContent) => {
+      if (newContent) {
+        contentRendered.value = false;
+        nextTick(() => {
+          renderContent(newContent);
+        });
+      }
     }
-  }
 );
 
 // 渲染内容的方法，处理DOM可用性和兼容性问题
@@ -118,6 +118,7 @@ const renderContentInternal = (content) => {
             footnotes: true, // 启用脚注
             autoSpace: true, // 自动空格
             media: true, // 启用媒体链接解析（视频、音频等）
+            listStyle: true, // 启用列表样式支持
             // 图表渲染相关配置
             mermaid: {
               theme: "default", // 使用固定的主题，不跟随暗色模式变化
@@ -150,6 +151,58 @@ const renderContentInternal = (content) => {
             const diagramContainers = previewElement.value.querySelectorAll(".language-mermaid, .language-flow, .language-plantuml, .language-gantt");
             diagramContainers.forEach((container) => {
               container.classList.add("diagram-fixed-theme");
+            });
+
+            // 自定义图片点击放大功能
+            const images = previewElement.value.querySelectorAll("img");
+            images.forEach((img) => {
+              // 避免重复添加事件
+              if (!img.getAttribute("data-preview-bound")) {
+                img.setAttribute("data-preview-bound", "true");
+                img.style.cursor = "pointer"; // 显示为可点击的样式
+
+                img.addEventListener("click", (e) => {
+                  e.preventDefault();
+
+                  // 创建图片预览容器
+                  const previewContainer = document.createElement("div");
+                  previewContainer.className = "image-preview-container";
+                  previewContainer.style.position = "fixed";
+                  previewContainer.style.top = "0";
+                  previewContainer.style.left = "0";
+                  previewContainer.style.width = "100%";
+                  previewContainer.style.height = "100%";
+                  previewContainer.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+                  previewContainer.style.zIndex = "10000";
+                  previewContainer.style.display = "flex";
+                  previewContainer.style.justifyContent = "center";
+                  previewContainer.style.alignItems = "center";
+                  previewContainer.style.cursor = "zoom-out";
+
+                  // 创建图片元素
+                  const previewImg = document.createElement("img");
+                  previewImg.src = img.src;
+                  previewImg.style.maxWidth = "90%";
+                  previewImg.style.maxHeight = "90%";
+                  previewImg.style.objectFit = "contain";
+                  previewImg.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.5)";
+                  previewImg.style.transition = "transform 0.3s ease";
+
+                  // 添加点击关闭功能
+                  previewContainer.addEventListener("click", () => {
+                    document.body.removeChild(previewContainer);
+                  });
+
+                  // 防止点击图片时冒泡事件关闭预览
+                  previewImg.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                  });
+
+                  // 添加到DOM
+                  previewContainer.appendChild(previewImg);
+                  document.body.appendChild(previewContainer);
+                });
+              }
             });
 
             // 标记内容已渲染，并触发渲染完成事件
@@ -236,14 +289,14 @@ onMounted(() => {
 
     <!-- 后备内容显示 - 当预览元素为空或渲染失败时显示原始Markdown -->
     <div
-      v-if="props.content && !isContentRendered() && previewElement && contentRendered === false"
-      class="mt-4 p-3 border rounded"
-      :class="props.darkMode ? 'border-yellow-600 bg-yellow-900/20' : 'border-yellow-500 bg-yellow-50'"
+        v-if="props.content && !isContentRendered() && previewElement && contentRendered === false"
+        class="mt-4 p-3 border rounded"
+        :class="props.darkMode ? 'border-yellow-600 bg-yellow-900/20' : 'border-yellow-500 bg-yellow-50'"
     >
       <p class="text-sm mb-2" :class="props.darkMode ? 'text-yellow-300' : 'text-yellow-700'">Markdown 渲染失败，显示原始内容：</p>
       <pre class="whitespace-pre-wrap overflow-auto max-h-[600px] p-3 rounded" :class="props.darkMode ? 'text-gray-200 bg-gray-800' : 'text-gray-800 bg-gray-100'">{{
-        props.content
-      }}</pre>
+          props.content
+        }}</pre>
     </div>
 
     <!-- 无内容提示 -->
@@ -262,8 +315,6 @@ onMounted(() => {
   color: v-bind('props.darkMode ? "#d4d4d4" : "#374151"'); /* 显式设置文本颜色 */
   background-color: v-bind('props.darkMode ? "transparent" : "transparent"'); /* 确保背景透明 */
 }
-
-
 
 /* 确保暗色模式下的特定样式 */
 :deep(.vditor-reset--dark) {
@@ -387,6 +438,33 @@ onMounted(() => {
 :deep(.vditor-reset ul, .vditor-reset ol) {
   padding-left: 2em;
   margin: 1em 0;
+}
+
+/* 多级列表样式 */
+/* 有序列表样式 */
+:deep(.vditor-reset ol) {
+  list-style-type: decimal;
+}
+
+:deep(.vditor-reset ol ol) {
+  list-style-type: decimal;
+}
+
+:deep(.vditor-reset ol ol ol) {
+  list-style-type: decimal;
+}
+
+/* 无序列表样式 */
+:deep(.vditor-reset ul) {
+  list-style-type: disc;
+}
+
+:deep(.vditor-reset ul ul) {
+  list-style-type: circle;
+}
+
+:deep(.vditor-reset ul ul ul) {
+  list-style-type: square;
 }
 
 /* 图片样式 */

@@ -6,8 +6,8 @@
 
     <!-- 管理员权限提示 -->
     <div
-      v-if="!hasPermission"
-      class="mb-4 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-200"
+        v-if="!hasPermission"
+        class="mb-4 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-800 dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-200"
     >
       <div class="flex items-center">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -35,36 +35,36 @@
         <div class="form-group">
           <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.remark") }}</label>
           <input
-            type="text"
-            class="form-input"
-            :class="getInputClasses()"
-            :placeholder="$t('markdown.form.remarkPlaceholder')"
-            v-model="formData.remark"
-            :disabled="!hasPermission"
+              type="text"
+              class="form-input"
+              :class="getInputClasses()"
+              :placeholder="$t('markdown.form.remarkPlaceholder')"
+              v-model="formData.remark"
+              :disabled="!hasPermission"
           />
         </div>
 
         <div class="form-group">
           <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.customLink") }}</label>
           <input
-            type="text"
-            class="form-input"
-            :class="getInputClasses()"
-            :placeholder="$t('markdown.form.customLinkPlaceholder')"
-            v-model="formData.customLink"
-            :disabled="!hasPermission"
+              type="text"
+              class="form-input"
+              :class="getInputClasses()"
+              :placeholder="$t('markdown.form.customLinkPlaceholder')"
+              v-model="formData.customLink"
+              :disabled="!hasPermission"
           />
         </div>
 
         <div class="form-group">
           <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.password") }}</label>
           <input
-            type="text"
-            class="form-input"
-            :class="getInputClasses()"
-            :placeholder="$t('markdown.form.passwordPlaceholder')"
-            v-model="formData.password"
-            :disabled="!hasPermission"
+              type="text"
+              class="form-input"
+              :class="getInputClasses()"
+              :placeholder="$t('markdown.form.passwordPlaceholder')"
+              v-model="formData.password"
+              :disabled="!hasPermission"
           />
         </div>
 
@@ -82,16 +82,16 @@
         <div class="form-group">
           <label class="form-label" :class="darkMode ? 'text-gray-300' : 'text-gray-700'">{{ $t("markdown.form.maxViews") }}</label>
           <input
-            type="number"
-            min="0"
-            step="1"
-            pattern="\d*"
-            class="form-input"
-            :class="getInputClasses()"
-            :placeholder="$t('markdown.form.maxViewsPlaceholder')"
-            v-model.number="formData.maxViews"
-            @input="validateMaxViews"
-            :disabled="!hasPermission"
+              type="number"
+              min="0"
+              step="1"
+              pattern="\d*"
+              class="form-input"
+              :class="getInputClasses()"
+              :placeholder="$t('markdown.form.maxViewsPlaceholder')"
+              v-model.number="formData.maxViews"
+              @input="validateMaxViews"
+              :disabled="!hasPermission"
           />
         </div>
       </div>
@@ -116,34 +116,34 @@
 
           <!-- 复制图标 -->
           <button
-            @click="copyShareLink"
-            class="ml-2 p-1 rounded-md transition-colors"
-            :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'"
-            :title="$t('markdown.copyLink')"
+              @click="copyShareLink"
+              class="ml-2 p-1 rounded-md transition-colors"
+              :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'"
+              :title="$t('markdown.copyLink')"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
               />
             </svg>
           </button>
 
           <!-- 二维码图标 -->
           <button
-            @click="showQRCode"
-            class="ml-2 p-1 rounded-md transition-colors"
-            :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'"
-            :title="$t('markdown.showQRCode')"
+              @click="showQRCode"
+              class="ml-2 p-1 rounded-md transition-colors"
+              :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'"
+              :title="$t('markdown.showQRCode')"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
               />
             </svg>
           </button>
@@ -289,8 +289,8 @@ const checkPermissionStatus = async () => {
 
 const getInputClasses = () => {
   return props.darkMode
-    ? "bg-gray-800 border-gray-700 text-gray-100 focus:ring-primary-600 focus:border-primary-600"
-    : "bg-white border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500";
+      ? "bg-gray-800 border-gray-700 text-gray-100 focus:ring-primary-600 focus:border-primary-600"
+      : "bg-white border-gray-300 text-gray-900 focus:ring-primary-500 focus:border-primary-500";
 };
 
 const initEditor = () => {
@@ -321,6 +321,11 @@ const initEditor = () => {
       enable: true, // 启用字符计数器
       type: "text", // 统计类型：text（字符数）
     },
+    tab: "\t", // 按Tab键时插入制表符而非缩进
+    indent: {
+      tab: "\t", // 使用制表符进行缩进
+      codeBlock: 4, // 代码块的缩进为4个空格
+    },
     preview: {
       theme: theme,
       hljs: {
@@ -336,6 +341,9 @@ const initEditor = () => {
         mark: true,
         footnotes: true,
         autoSpace: true,
+        listStyle: true, // 确保开启列表样式
+        paragraphBeginningSpace: true, // 段落开头空格支持
+        fixTermTypo: true, // 术语修正
         media: true, // 启用媒体链接解析
         // 图表渲染相关配置
         mermaid: {
@@ -546,25 +554,33 @@ const initEditor = () => {
       // 输入时触发自动保存计时
       autoSaveDebounce();
     },
+    // 添加自定义键盘处理
+    customKeymap: {
+      // 自定义Tab键处理
+      Tab: (editor, event) => {
+        // 默认使用vditor自身的tab处理
+        return false;
+      },
+    },
   });
 };
 
 // 监听暗色模式变化，重新初始化编辑器
 watch(
-  () => props.darkMode,
-  () => {
-    if (editor) {
-      const currentValue = editor.getValue();
-      editor.destroy();
-      initEditor();
-      // 保留当前编辑的内容
-      setTimeout(() => {
-        if (editor && currentValue) {
-          editor.setValue(currentValue);
-        }
-      }, 100);
+    () => props.darkMode,
+    () => {
+      if (editor) {
+        const currentValue = editor.getValue();
+        editor.destroy();
+        initEditor();
+        // 保留当前编辑的内容
+        setTimeout(() => {
+          if (editor && currentValue) {
+            editor.setValue(currentValue);
+          }
+        }, 100);
+      }
     }
-  }
 );
 
 // 自动保存
@@ -649,9 +665,9 @@ const validateApiKey = async (apiKey) => {
 
           // 触发自定义事件，通知其他组件权限已更新
           window.dispatchEvent(
-            new CustomEvent("api-key-permissions-updated", {
-              detail: { permissions },
-            })
+              new CustomEvent("api-key-permissions-updated", {
+                detail: { permissions },
+              })
           );
 
           console.log("API密钥验证成功，文本权限:", textPermission ? "有权限" : "无权限");
@@ -904,17 +920,17 @@ const copyShareLink = () => {
   if (!shareLink.value) return;
 
   navigator.clipboard
-    .writeText(shareLink.value)
-    .then(() => {
-      savingStatus.value = t("markdown.linkCopied");
-      setTimeout(() => {
-        savingStatus.value = "";
-      }, 2000);
-    })
-    .catch((err) => {
-      console.error("复制失败:", err);
-      savingStatus.value = t("markdown.copyFailed");
-    });
+      .writeText(shareLink.value)
+      .then(() => {
+        savingStatus.value = t("markdown.linkCopied");
+        setTimeout(() => {
+          savingStatus.value = "";
+        }, 2000);
+      })
+      .catch((err) => {
+        console.error("复制失败:", err);
+        savingStatus.value = t("markdown.copyFailed");
+      });
 };
 
 // 添加对maxViews的验证函数
@@ -1076,6 +1092,8 @@ const navigateToAdmin = () => {
   font-size: 16px;
   line-height: 1.6;
   color: v-bind('props.darkMode ? "#d4d4d4" : "#374151"');
+  tab-size: 4;
+  -moz-tab-size: 4;
 }
 
 :deep(.vditor-sv) {
@@ -1083,6 +1101,8 @@ const navigateToAdmin = () => {
   line-height: 1.6;
   background-color: v-bind('props.darkMode ? "#1e1e1e" : "#ffffff"');
   color: v-bind('props.darkMode ? "#d4d4d4" : "#374151"');
+  tab-size: 4;
+  -moz-tab-size: 4;
 }
 
 :deep(.vditor-sv__marker) {
@@ -1110,6 +1130,8 @@ const navigateToAdmin = () => {
   line-height: 1.6;
   background-color: v-bind('props.darkMode ? "#1e1e1e" : "#ffffff"');
   color: v-bind('props.darkMode ? "#d4d4d4" : "#374151"');
+  tab-size: 4;
+  -moz-tab-size: 4;
 }
 
 :deep(.vditor-ir__node--expand) {
@@ -1479,5 +1501,109 @@ const navigateToAdmin = () => {
 :deep(.vditor-preview) {
   background-color: v-bind('props.darkMode ? "#1e1e1e" : "#ffffff"');
   color: v-bind('props.darkMode ? "#d4d4d4" : "#374151"');
+}
+
+/* 添加多级列表样式支持 */
+/* 有序列表样式 */
+:deep(.vditor-reset ol) {
+  list-style-type: decimal;
+  padding-left: 2em;
+}
+
+:deep(.vditor-reset ol ol) {
+  list-style-type: decimal;
+}
+
+:deep(.vditor-reset ol ol ol) {
+  list-style-type: decimal;
+}
+
+/* 无序列表样式 */
+:deep(.vditor-reset ul) {
+  list-style-type: disc;
+  padding-left: 2em;
+}
+
+:deep(.vditor-reset ul ul) {
+  list-style-type: circle;
+}
+
+:deep(.vditor-reset ul ul ul) {
+  list-style-type: square;
+}
+
+/* 预览模式列表样式 */
+:deep(.vditor-preview ol) {
+  list-style-type: decimal;
+  padding-left: 2em;
+}
+
+:deep(.vditor-preview ol ol) {
+  list-style-type: decimal;
+}
+
+:deep(.vditor-preview ol ol ol) {
+  list-style-type: decimal;
+}
+
+:deep(.vditor-preview ul) {
+  list-style-type: disc;
+  padding-left: 2em;
+}
+
+:deep(.vditor-preview ul ul) {
+  list-style-type: circle;
+}
+
+:deep(.vditor-preview ul ul ul) {
+  list-style-type: square;
+}
+
+/* 确保即时渲染模式的列表也正确显示 */
+:deep(.vditor-ir ol) {
+  list-style-type: decimal;
+  padding-left: 2em;
+}
+
+:deep(.vditor-ir ol ol) {
+  list-style-type: decimal;
+}
+
+:deep(.vditor-ir ol ol ol) {
+  list-style-type: decimal;
+}
+
+:deep(.vditor-ir ul) {
+  list-style-type: disc;
+  padding-left: 2em;
+}
+
+:deep(.vditor-ir ul ul) {
+  list-style-type: circle;
+}
+
+:deep(.vditor-ir ul ul ul) {
+  list-style-type: square;
+}
+
+/* 制表符样式支持 */
+:deep(.vditor-reset) {
+  tab-size: 4;
+  -moz-tab-size: 4;
+}
+
+:deep(.vditor-ir) {
+  tab-size: 4;
+  -moz-tab-size: 4;
+}
+
+:deep(.vditor-sv) {
+  tab-size: 4;
+  -moz-tab-size: 4;
+}
+
+:deep(.vditor-wysiwyg) {
+  tab-size: 4;
+  -moz-tab-size: 4;
 }
 </style>
