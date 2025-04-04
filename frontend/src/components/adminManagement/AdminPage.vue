@@ -13,9 +13,6 @@ const props = defineProps({
   },
 });
 
-// 定义事件
-const emit = defineEmits(["login-success", "login-failed", "auth-verified"]);
-
 // 登录状态
 const isLoggedIn = ref(false);
 // 用户权限
@@ -76,7 +73,6 @@ const checkLoginStatus = async () => {
       if (!isValid) {
         console.warn("管理员令牌已过期或无效");
         handleLogout();
-        emit("auth-verified", { success: false });
         return;
       }
 
@@ -88,12 +84,10 @@ const checkLoginStatus = async () => {
         text: true,
         file: true,
       };
-      emit("auth-verified", { success: true });
       return;
     } catch (error) {
       console.error("验证管理员令牌时出错:", error);
       handleLogout();
-      emit("auth-verified", { success: false });
       return;
     }
   }
@@ -116,7 +110,6 @@ const checkLoginStatus = async () => {
           text: permissions.text || false,
           file: permissions.file || false,
         };
-        emit("auth-verified", { success: true });
         return;
       } catch (e) {
         console.error("解析权限缓存失败:", e);
@@ -124,13 +117,7 @@ const checkLoginStatus = async () => {
     }
 
     // 如果没有缓存，则需要重新验证API密钥
-    try {
-      await validateApiKey(apiKey);
-      emit("auth-verified", { success: true });
-    } catch (error) {
-      console.error("验证API密钥失败:", error);
-      emit("auth-verified", { success: false });
-    }
+    validateApiKey(apiKey);
     return;
   }
 
@@ -147,7 +134,6 @@ const checkLoginStatus = async () => {
   localStorage.removeItem("api_key");
   localStorage.removeItem("api_key_permissions");
   localStorage.removeItem("api_key_info");
-  emit("auth-verified", { success: false });
 };
 
 // 验证API密钥的有效性和权限
@@ -209,9 +195,9 @@ const validateApiKey = async (apiKey) => {
       // 触发storage事件，通知其他组件权限已更新
       // localStorage事件只在其他窗口触发，这里我们手动触发一个自定义事件
       window.dispatchEvent(
-          new CustomEvent("api-key-permissions-updated", {
-            detail: { permissions },
-          })
+        new CustomEvent("api-key-permissions-updated", {
+          detail: { permissions },
+        })
       );
 
       console.log("API密钥验证成功，权限已更新:", permissions);
@@ -233,9 +219,9 @@ const validateApiKey = async (apiKey) => {
 
     // 通知其他组件权限已清除
     window.dispatchEvent(
-        new CustomEvent("api-key-permissions-updated", {
-          detail: { permissions: null },
-        })
+      new CustomEvent("api-key-permissions-updated", {
+        detail: { permissions: null },
+      })
     );
   }
 };
@@ -253,7 +239,6 @@ const handleLoginSuccess = (result) => {
       text: true,
       file: true,
     };
-    emit("login-success");
   }
   // 处理API密钥授权结果
   else if (result && result.apiKey) {
@@ -273,7 +258,6 @@ const handleLoginSuccess = (result) => {
     if (result.keyInfo) {
       localStorage.setItem("api_key_info", JSON.stringify(result.keyInfo));
     }
-    emit("login-success");
   }
 };
 
@@ -290,7 +274,6 @@ const handleLogout = () => {
   localStorage.removeItem("api_key");
   localStorage.removeItem("api_key_permissions");
   localStorage.removeItem("api_key_info");
-  emit("login-failed");
 };
 </script>
 
