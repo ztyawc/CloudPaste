@@ -1101,6 +1101,12 @@ async function validateAdminToken(db, token) {
  */
 async function generateUniqueSlug(db, customSlug = null) {
   if (customSlug) {
+    // 添加格式验证：只允许字母、数字、连字符、下划线
+    const slugRegex = /^[a-zA-Z0-9_-]+$/;
+    if (!slugRegex.test(customSlug)) {
+      throw new Error("链接后缀格式无效，只允许使用字母、数字、连字符(-)和下划线(_)");
+    }
+
     // 检查自定义slug是否已在文本表中存在
     const existingPaste = await db.prepare(`SELECT id FROM ${DbTables.PASTES} WHERE slug = ?`).bind(customSlug).first();
 
@@ -1135,6 +1141,12 @@ async function generateUniqueSlug(db, customSlug = null) {
  */
 async function generateUniqueFileSlug(db, customSlug = null) {
   if (customSlug) {
+    // 添加格式验证：只允许字母、数字、连字符、下划线
+    const slugRegex = /^[a-zA-Z0-9_-]+$/;
+    if (!slugRegex.test(customSlug)) {
+      throw new Error("链接后缀格式无效，只允许使用字母、数字、连字符(-)和下划线(_)");
+    }
+
     // 检查自定义slug是否已在文件表中存在
     const existingFile = await db.prepare(`SELECT id FROM ${DbTables.FILES} WHERE slug = ?`).bind(customSlug).first();
 

@@ -49,11 +49,14 @@
           <input
               type="text"
               class="form-input"
-              :class="getInputClasses()"
+              :class="[getInputClasses(), slugError ? (darkMode ? 'border-red-500' : 'border-red-600') : '']"
               :placeholder="$t('markdown.form.customLinkPlaceholder')"
               v-model="formData.customLink"
               :disabled="!hasPermission"
+              @input="validateCustomLink"
           />
+          <p v-if="slugError" class="mt-1 text-sm" :class="darkMode ? 'text-red-400' : 'text-red-600'">{{ slugError }}</p>
+          <p v-else class="mt-1 text-xs text-gray-500 dark:text-gray-400">仅允许使用字母、数字、-和_</p>
         </div>
 
         <div class="form-group">
@@ -285,6 +288,26 @@ const checkPermissionStatus = async () => {
   // 综合判断是否有创建权限
   hasPermission.value = isAdmin.value || (hasApiKey.value && hasTextPermission.value);
   console.log("用户创建文本分享权限:", hasPermission.value ? "有权限" : "无权限");
+};
+
+// 验证自定义链接后缀格式
+const validateCustomLink = () => {
+  // 清除现有错误
+  slugError.value = "";
+
+  // 如果为空则不验证（使用随机生成的slug）
+  if (!formData.value.customLink) {
+    return true;
+  }
+
+  // 验证格式：只允许字母、数字、连字符、下划线
+  const slugRegex = /^[a-zA-Z0-9_-]+$/;
+  if (!slugRegex.test(formData.value.customLink)) {
+    slugError.value = "无效格式，只允许使用字母、数字、-和_";
+    return false;
+  }
+
+  return true;
 };
 
 const getInputClasses = () => {
@@ -823,6 +846,12 @@ const saveContent = async () => {
 
   if (!hasPermission.value) {
     savingStatus.value = t("markdown.errorNoPermission");
+    return;
+  }
+
+  // 验证自定义链接格式
+  if (!validateCustomLink()) {
+    savingStatus.value = slugError.value;
     return;
   }
 

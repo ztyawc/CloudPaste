@@ -145,7 +145,7 @@ const handlePathChange = () => {
   console.log("路径变化检测:", path);
 
   // 检查是否是分享链接格式
-  const pasteMatch = path.match(/^\/paste\/([a-zA-Z0-9]+)$/);
+  const pasteMatch = path.match(/^\/paste\/([a-zA-Z0-9_-]+)$/);
   if (pasteMatch) {
     console.log("检测到分享链接路径:", pasteMatch[1]);
     // 如果当前不是paste-view页面，则进行平滑切换
@@ -162,7 +162,7 @@ const handlePathChange = () => {
   }
 
   // 检查是否是文件预览链接格式
-  const fileMatch = path.match(/^\/file\/([a-zA-Z0-9]+)$/);
+  const fileMatch = path.match(/^\/file\/([a-zA-Z0-9_-]+)$/);
   if (fileMatch) {
     console.log("检测到文件预览链接路径:", fileMatch[1]);
     // 如果当前不是file-view页面，则进行平滑切换
@@ -266,9 +266,9 @@ updateTheme();
             </div>
             <nav class="hidden sm:ml-6 sm:flex sm:space-x-8">
               <a
-                href="#"
-                @click.prevent="navigateTo('home')"
-                :class="[
+                  href="#"
+                  @click.prevent="navigateTo('home')"
+                  :class="[
                   activePage === 'home' ? 'border-primary-500 text-current' : 'border-transparent hover:border-gray-300',
                   'inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors duration-200',
                   activePage !== 'home' && darkMode ? 'text-gray-300 hover:text-gray-100' : activePage !== 'home' ? 'text-gray-500 hover:text-gray-700' : '',
@@ -277,9 +277,9 @@ updateTheme();
                 {{ $t("nav.home") }}
               </a>
               <a
-                href="#"
-                @click.prevent="navigateTo('upload')"
-                :class="[
+                  href="#"
+                  @click.prevent="navigateTo('upload')"
+                  :class="[
                   activePage === 'upload' ? 'border-primary-500 text-current' : 'border-transparent hover:border-gray-300',
                   'inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors duration-200',
                   activePage !== 'upload' && darkMode ? 'text-gray-300 hover:text-gray-100' : activePage !== 'upload' ? 'text-gray-500 hover:text-gray-700' : '',
@@ -288,9 +288,9 @@ updateTheme();
                 {{ $t("nav.upload") }}
               </a>
               <a
-                href="#"
-                @click.prevent="navigateTo('admin')"
-                :class="[
+                  href="#"
+                  @click.prevent="navigateTo('admin')"
+                  :class="[
                   activePage === 'admin' ? 'border-primary-500 text-current' : 'border-transparent hover:border-gray-300',
                   'inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors duration-200',
                   activePage !== 'admin' && darkMode ? 'text-gray-300 hover:text-gray-100' : activePage !== 'admin' ? 'text-gray-500 hover:text-gray-700' : '',
@@ -302,19 +302,19 @@ updateTheme();
           </div>
           <div class="hidden sm:ml-6 sm:flex sm:items-center space-x-2">
             <a
-              :href="githubUrl"
-              target="_blank"
-              rel="noopener noreferrer"
-              :class="[
+                :href="githubUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                :class="[
                 'p-2 rounded-full focus:outline-none transition-colors',
                 darkMode ? 'text-gray-300 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100',
               ]"
-              aria-label="GitHub"
-              title="GitHub"
+                aria-label="GitHub"
+                title="GitHub"
             >
               <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
                 <path
-                  d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"
+                    d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"
                 />
               </svg>
             </a>
@@ -322,9 +322,9 @@ updateTheme();
             <LanguageSwitcher :darkMode="darkMode" />
 
             <button
-              type="button"
-              @click="toggleDarkMode"
-              :class="[
+                type="button"
+                @click="toggleDarkMode"
+                :class="[
                 'p-2 rounded-full focus:outline-none transition-colors',
                 darkMode ? 'text-yellow-300 hover:text-yellow-200 hover:bg-gray-700' : 'text-gray-400 hover:text-gray-500 hover:bg-gray-100',
               ]"
@@ -332,10 +332,10 @@ updateTheme();
               <span class="sr-only">{{ $t("theme.toggle") }}</span>
               <svg v-if="darkMode" class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
                 />
               </svg>
               <svg v-else class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -347,19 +347,19 @@ updateTheme();
           <!-- 移动端菜单按钮 -->
           <div class="flex items-center sm:hidden">
             <a
-              :href="githubUrl"
-              target="_blank"
-              rel="noopener noreferrer"
-              :class="[
+                :href="githubUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                :class="[
                 'p-2 rounded-full focus:outline-none transition-colors mr-2',
                 darkMode ? 'text-gray-300 hover:text-white hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100',
               ]"
-              aria-label="GitHub"
-              title="GitHub"
+                aria-label="GitHub"
+                title="GitHub"
             >
               <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
                 <path
-                  d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"
+                    d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"
                 />
               </svg>
             </a>
@@ -367,20 +367,20 @@ updateTheme();
             <LanguageSwitcher :darkMode="darkMode" class="mr-2" />
 
             <button
-              type="button"
-              @click="toggleDarkMode"
-              :class="[
+                type="button"
+                @click="toggleDarkMode"
+                :class="[
                 'p-2 rounded-full focus:outline-none transition-colors mr-2',
                 darkMode ? 'text-yellow-300 hover:text-yellow-200 hover:bg-gray-700' : 'text-gray-400 hover:text-gray-500 hover:bg-gray-100',
               ]"
-              aria-label="切换主题"
+                aria-label="切换主题"
             >
               <svg v-if="darkMode" class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
                 />
               </svg>
               <svg v-else class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -388,9 +388,9 @@ updateTheme();
               </svg>
             </button>
             <button
-              type="button"
-              @click="toggleMobileMenu"
-              :class="[
+                type="button"
+                @click="toggleMobileMenu"
+                :class="[
                 'inline-flex items-center justify-center p-2 rounded-full focus:outline-none transition-all duration-200',
                 isMobileMenuOpen
                   ? darkMode
@@ -400,8 +400,8 @@ updateTheme();
                   ? 'text-gray-300 hover:text-white hover:bg-gray-700'
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100',
               ]"
-              :aria-expanded="isMobileMenuOpen"
-              aria-label="主菜单"
+                :aria-expanded="isMobileMenuOpen"
+                aria-label="主菜单"
             >
               <!-- 菜单图标 -->
               <svg v-if="!isMobileMenuOpen" class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -420,9 +420,9 @@ updateTheme();
       <div class="sm:hidden overflow-hidden transition-all duration-300 ease-in-out" :class="[isMobileMenuOpen ? 'max-h-80' : 'max-h-0']">
         <div :class="['py-3 border-t transition-colors', darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200']">
           <a
-            href="#"
-            @click.prevent="navigateTo('home')"
-            :class="[
+              href="#"
+              @click.prevent="navigateTo('home')"
+              :class="[
               'flex items-center px-4 py-3 transition-colors duration-200',
               activePage === 'home'
                 ? darkMode
@@ -436,9 +436,9 @@ updateTheme();
             <span class="ml-2">{{ $t("nav.home") }}</span>
           </a>
           <a
-            href="#"
-            @click.prevent="navigateTo('upload')"
-            :class="[
+              href="#"
+              @click.prevent="navigateTo('upload')"
+              :class="[
               'flex items-center px-4 py-3 transition-colors duration-200',
               activePage === 'upload'
                 ? darkMode
@@ -452,9 +452,9 @@ updateTheme();
             <span class="ml-2">{{ $t("nav.upload") }}</span>
           </a>
           <a
-            href="#"
-            @click.prevent="navigateTo('admin')"
-            :class="[
+              href="#"
+              @click.prevent="navigateTo('admin')"
+              :class="[
               'flex items-center px-4 py-3 transition-colors duration-200',
               activePage === 'admin'
                 ? darkMode
@@ -483,9 +483,9 @@ updateTheme();
         <AdminPage :dark-mode="darkMode" class="flex-1 flex flex-col" />
       </div>
       <div
-        v-else-if="activePage === 'paste-view' && pasteSlug"
-        class="transition-opacity duration-300 flex-1 flex flex-col"
-        :class="{ 'opacity-0': transitioning, dark: darkMode }"
+          v-else-if="activePage === 'paste-view' && pasteSlug"
+          class="transition-opacity duration-300 flex-1 flex flex-col"
+          :class="{ 'opacity-0': transitioning, dark: darkMode }"
       >
         <PasteView :slug="pasteSlug" :dark-mode="darkMode" />
       </div>

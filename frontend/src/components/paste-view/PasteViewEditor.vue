@@ -486,7 +486,7 @@ onBeforeUnmount(() => {
               v-model="editForm.customLink"
               disabled
           />
-          <p class="mt-1 text-xs" :class="darkMode ? 'text-gray-500' : 'text-gray-400'">链接后缀不可修改</p>
+          <p class="mt-1 text-xs" :class="darkMode ? 'text-gray-500' : 'text-gray-400'">后缀不可修改，仅支持字母、-和_</p>
         </div>
 
         <!-- 备注信息 -->
