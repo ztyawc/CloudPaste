@@ -119,6 +119,8 @@ const renderContentInternal = (content) => {
             autoSpace: true, // 自动空格
             media: true, // 启用媒体链接解析（视频、音频等）
             listStyle: true, // 启用列表样式支持
+            // 添加任务列表支持
+            task: true, // 启用任务列表
             // 图表渲染相关配置
             mermaid: {
               theme: "default", // 使用固定的主题，不跟随暗色模式变化
@@ -151,6 +153,51 @@ const renderContentInternal = (content) => {
             const diagramContainers = previewElement.value.querySelectorAll(".language-mermaid, .language-flow, .language-plantuml, .language-gantt");
             diagramContainers.forEach((container) => {
               container.classList.add("diagram-fixed-theme");
+            });
+
+            // 添加任务列表的交互功能
+            const setupTaskListInteraction = () => {
+              // 根据用户反馈，使用已知有效的选择器
+              const checkboxes = previewElement.value.querySelectorAll('.vditor-task input[type="checkbox"]');
+
+              // 处理所有找到的复选框
+              checkboxes.forEach((checkbox) => {
+                // 强制确保可交互性
+                checkbox.disabled = false;
+                checkbox.style.pointerEvents = "auto";
+                checkbox.style.cursor = "pointer";
+
+                // 找到父级li元素
+                const parentLi = checkbox.closest("li");
+                if (parentLi) {
+                  // 如果已经勾选，添加样式属性
+                  if (checkbox.checked) {
+                    parentLi.setAttribute("data-task-checked", "true");
+                  }
+
+                  // 添加change事件处理
+                  checkbox.addEventListener("change", (e) => {
+                    const isChecked = e.target.checked;
+                    // 更新父元素的数据属性，启用样式
+                    parentLi.setAttribute("data-task-checked", isChecked.toString());
+                  });
+                }
+              });
+            };
+
+            // 运行初始设置
+            setupTaskListInteraction();
+
+            // 设置DOM观察器，处理动态变化
+            const observer = new MutationObserver(() => {
+              // 延迟短暂时间后运行，确保DOM更新完成
+              setTimeout(setupTaskListInteraction, 50);
+            });
+
+            // 监听DOM变化
+            observer.observe(previewElement.value, {
+              childList: true,
+              subtree: true,
             });
 
             // 自定义图片点击放大功能
@@ -553,5 +600,45 @@ onMounted(() => {
     margin: 1.5em 0;
     padding: 1.5em;
   }
+}
+
+/* 任务列表样式增强 */
+:deep(.vditor-reset ul li input[type="checkbox"]) {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  margin-right: 0.5em;
+  width: 1.2em;
+  height: 1.2em;
+  vertical-align: middle;
+  position: relative;
+  top: -0.1em;
+}
+
+:deep(.vditor-reset ul li) {
+  list-style-type: none;
+  position: relative;
+}
+
+/* 确保任务列表项交互状态更明显 */
+:deep(.vditor-reset ul li[data-task-checked="true"]) {
+  text-decoration: line-through;
+  color: v-bind('props.darkMode ? "#6b7280" : "#9ca3af"');
+}
+
+:deep(.vditor-reset ul li input[type="checkbox"]:hover),
+:deep(.vditor-reset ul li input[type="checkbox"]:focus) {
+  outline: 1px solid v-bind('props.darkMode ? "#3b82f6" : "#2563eb"');
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+/* 确保任务列表在暗色模式下有正确的颜色 */
+:deep(.vditor-reset--dark ul li input[type="checkbox"]) {
+  background-color: #1e1e1e;
+  border-color: #4b5563;
+}
+
+:deep(.vditor-reset--light ul li input[type="checkbox"]) {
+  background-color: #ffffff;
+  border-color: #d1d5db;
 }
 </style>
