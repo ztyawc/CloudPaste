@@ -156,7 +156,7 @@ Fork 仓库，填好密钥，然后运行工作流
 6. **用 schema.sql 初始化数据库**（创建表和初始数据）
 7. **设置 ENCRYPTION_SECRET 环境变量**（从 GitHub Secrets 获取或自动生成）
 8. 自动部署 Worker 到 Cloudflare
-9. 设置自定义域名代替cf原本的域名
+9. 建议设置自定义域名代替Cloudflare原本提供的域名(否则国内无法访问)
 
 **<span style="color:red">⚠️ 安全提示：请在系统初始化后立即修改默认管理员密码（用户名: admin, 密码: admin123）。</span>**
 
@@ -175,7 +175,14 @@ Fork 仓库，填好密钥，然后运行工作流
    - 名称：`VITE_BACKEND_URL`
    - 值：您的后端 Worker URL（如 `https://cloudpaste-backend.your-username.workers.dev`）建议使用自定义的worker后端域名。
 
+   - **<span style="color:red">一定要完整的填写后端域名,"https://xxxx.com" 格式</span>**
+
 5. 随后再次运行一遍工作流，完成后端域名加载
+
+   ![test-1](./images/test-1.png)
+
+**<span style="color:red">务必严格按照步骤操作，否则会出现后端域名加载失败</span>**
+
 #### Vercel
 
 Vercel 建议使用以下方式部署：

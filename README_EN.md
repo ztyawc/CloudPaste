@@ -156,7 +156,7 @@ Deployment is automatically triggered whenever files in the `backend` directory 
 6. **Initialize database with schema.sql** (create tables and initial data)
 7. **Set ENCRYPTION_SECRET environment variable** (obtained from GitHub Secrets or automatically generated)
 8. Automatically deploy Worker to Cloudflare
-9. Set up a custom domain to replace the original cf domain
+9. It is recommended to set up a custom domain to replace the default domain provided by Cloudflare (Otherwise, it will be inaccessible from mainland China).
 
 **<span style="color:red">⚠️ Security reminder: Please change the default administrator password immediately after system initialization (Username: admin, Password: admin123).</span>**
 
@@ -173,9 +173,15 @@ Deployment is automatically triggered whenever files in the `frontend` directory
 4. Add environment variable:
 
    - Name: `VITE_BACKEND_URL`
-   - Value: Your backend Worker URL (e.g., `https://cloudpaste-backend.your-username.workers.dev`)It is recommended to use a custom worker backend domain.
+   - Value: Your backend Worker URL (e.g., `https://cloudpaste-backend.your-username.workers.dev`). Using a custom worker backend domain is recommended.
+
+   - **<span style="color:red">Be sure to enter the full backend domain, in the format "https://xxxx.com"</span>**
 
 5. Then run the workflow again to complete the backend domain loading
+
+   ![test-1](./images/test-1.png)
+
+**<span style="color:red">Be sure to follow the steps strictly, otherwise the backend domain loading will fail.</span>**
 
 #### Vercel
 
