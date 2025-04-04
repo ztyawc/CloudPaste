@@ -52,8 +52,6 @@ export default {
     errorPrefix: "Error",
     errorCreateShareFailed: "Failed to create share",
     qrCodeDownloaded: "QR code downloaded",
-    onlyAllowedChars: "Only letters, numbers, - and _ are allowed",
-    invalidFormat: "Invalid format, only letters, numbers, - and _ are allowed",
     form: {
       remark: "Remark (Optional)",
       remarkPlaceholder: "Add remark information...",
@@ -157,8 +155,6 @@ export default {
     uploadPageTitle: "File Upload",
     qrCodeDownloadSuccess: "QR code download started",
     delete: "Delete",
-    onlyAllowedChars: "Only letters, numbers, - and _ are allowed",
-    invalidFormat: "Invalid format, only letters, numbers, - and _ are allowed",
   },
   paste: {
     view: "Text Share",

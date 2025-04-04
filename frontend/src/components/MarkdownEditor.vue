@@ -56,7 +56,7 @@
               @input="validateCustomLink"
           />
           <p v-if="slugError" class="mt-1 text-sm" :class="darkMode ? 'text-red-400' : 'text-red-600'">{{ slugError }}</p>
-          <p v-else class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $t("markdown.onlyAllowedChars") }}</p>
+          <p v-else class="mt-1 text-xs text-gray-500 dark:text-gray-400">仅允许使用字母、数字、-和_</p>
         </div>
 
         <div class="form-group">
@@ -303,7 +303,7 @@ const validateCustomLink = () => {
   // 验证格式：只允许字母、数字、连字符、下划线
   const slugRegex = /^[a-zA-Z0-9_-]+$/;
   if (!slugRegex.test(formData.value.customLink)) {
-    slugError.value = t("markdown.invalidFormat");
+    slugError.value = "无效格式，只允许使用字母、数字、-和_";
     return false;
   }
 
