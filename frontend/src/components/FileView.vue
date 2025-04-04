@@ -3,34 +3,44 @@
     <!-- 添加面包屑导航标题，与文本分享页面风格一致 -->
     <div class="max-w-4xl mx-auto w-full px-4 mt-4">
       <div class="py-3 text-sm text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700 mb-4">
-        <a href="/" class="hover:text-primary-600 dark:hover:text-primary-400">首页</a>
+        <a href="/" class="hover:text-primary-600 dark:hover:text-primary-400">{{ t("common.back") }}</a>
         <span class="mx-2">/</span>
-        <span class="text-gray-700 dark:text-gray-300">文件分享</span>
+        <span class="text-gray-700 dark:text-gray-300">{{ t("file.view") }}</span>
       </div>
     </div>
 
     <div v-if="error" class="error-container py-12 px-4 max-w-4xl mx-auto text-center">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto mb-4 text-red-600 dark:text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="1.5"
-          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
         />
       </svg>
-      <h2 class="text-2xl font-bold mb-2 text-gray-900 dark:text-white">文件访问错误</h2>
+      <h2 class="text-2xl font-bold mb-2 text-gray-900 dark:text-white">{{ t("file.error") }}</h2>
       <p class="text-lg mb-6 text-gray-600 dark:text-gray-300">{{ error }}</p>
       <a
-        href="/"
-        class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
+          href="/"
+          class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
       >
-        返回首页
+        {{ t("common.back") }}
       </a>
+    </div>
+
+    <!-- 删除成功提示 -->
+    <div v-else-if="showDeleteSuccess" class="success-container py-12 px-4 max-w-4xl mx-auto text-center">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto mb-4 text-green-600 dark:text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7" />
+      </svg>
+      <h2 class="text-2xl font-bold mb-2 text-gray-900 dark:text-white">{{ t("file.deletedSuccess") }}</h2>
+      <p class="text-lg mb-6 text-gray-600 dark:text-gray-300">{{ t("file.deletedRedirectMsg") }}</p>
+      <div class="animate-pulse text-gray-500 dark:text-gray-400">{{ t("file.redirectCountdown", { seconds: redirectCountdown }) }}</div>
     </div>
 
     <div v-else-if="loading" class="loading-container py-12 px-4 max-w-4xl mx-auto text-center">
       <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 mx-auto mb-4 border-blue-600 dark:border-blue-500"></div>
-      <p class="text-lg text-gray-600 dark:text-gray-300">加载文件信息中...</p>
+      <p class="text-lg text-gray-600 dark:text-gray-300">{{ t("file.loading") }}</p>
     </div>
 
     <div v-else class="file-container flex-1 flex flex-col py-8 px-4 max-w-4xl mx-auto">
@@ -55,8 +65,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, defineProps } from "vue";
-import { useRouter } from "vue-router";
+import { ref, onMounted, defineProps, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
 import { api } from "../api";
 import { getAuthStatus } from "./file-view/FileViewUtils";
 
@@ -66,14 +76,15 @@ import FileViewPassword from "./file-view/FileViewPassword.vue";
 import FileViewActions from "./file-view/FileViewActions.vue";
 import FileEditModal from "./adminManagement/files-management/FileEditModal.vue";
 
+// 初始化i18n
+const { t } = useI18n();
+
 const props = defineProps({
   slug: {
     type: String,
     required: true,
   },
 });
-
-const router = useRouter();
 
 // 状态变量
 const slug = ref(props.slug);
@@ -86,6 +97,11 @@ const loading = ref(true);
 const error = ref("");
 const requiresPassword = ref(false);
 const showEditModal = ref(false);
+
+// 删除成功状态
+const showDeleteSuccess = ref(false);
+const redirectCountdown = ref(3);
+let countdownTimer = null;
 
 // 获取用户权限
 const { isAdmin } = getAuthStatus();
@@ -265,13 +281,42 @@ const saveFileChanges = async (updatedFile) => {
  * 处理文件删除事件
  */
 const handleFileDeleted = () => {
-  // 文件删除成功后重定向到首页
-  router.push("/");
+  // 显示删除成功提示
+  showDeleteSuccess.value = true;
+
+  // 开始倒计时
+  redirectCountdown.value = 3;
+
+  // 清除可能存在的旧定时器
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+  }
+
+  // 设置倒计时定时器
+  countdownTimer = setInterval(() => {
+    redirectCountdown.value--;
+
+    if (redirectCountdown.value <= 0) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+
+      // 直接使用window.location进行重定向
+      window.location.href = "/";
+    }
+  }, 1000);
 };
 
 // 组件挂载时加载文件信息
 onMounted(() => {
   loadFileInfo();
+});
+
+// 组件卸载时清除计时器
+onUnmounted(() => {
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
 });
 </script>
 

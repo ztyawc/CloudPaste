@@ -8,6 +8,7 @@ import PasteView from "./components/PasteView.vue";
 import FileUploadPage from "./components/FileUpload.vue";
 import FileView from "./components/FileView.vue";
 import LanguageSwitcher from "./components/LanguageSwitcher.vue";
+import LoadingOverlay from "./components/common/LoadingOverlay.vue";
 
 // 使用i18n
 const { t } = useI18n();
@@ -36,6 +37,10 @@ const isDev = import.meta.env.DEV;
 
 // 环境切换器显示控制
 const showEnvSwitcher = ref(false);
+
+// 加载状态控制
+const isLoading = ref(false);
+const loadingText = ref("");
 
 // GitHub仓库链接
 const githubUrl = "https://github.com/ling-drag0n/CloudPaste";
@@ -102,23 +107,49 @@ const navigateTo = (page) => {
     isMobileMenuOpen.value = false;
   }
 
-  // 延迟切换页面，让当前页面有时间完成清理
-  setTimeout(() => {
-    activePage.value = page;
-    // 如果不是查看分享页，清除slug
-    if (page !== "paste-view") {
-      pasteSlug.value = null;
-    }
-    // 如果需要，更新URL
-    updateUrl();
+  // 如果正在导航到管理页面，显示加载状态
+  if (page === "admin") {
+    isLoading.value = true;
+    loadingText.value = t("common.verifying");
 
-    // 添加调试日志
-    console.log(`页面从 ${prevPage} 切换到 ${page}`);
-
-    // 输出当前token信息，用于调试
+    // 验证逻辑
     const adminToken = localStorage.getItem("admin_token");
-    console.log(`切换页面后token状态: ${adminToken ? "存在" : "不存在"}`);
-  }, 0);
+    const apiKey = localStorage.getItem("api_key");
+
+    // 检查是否有管理员令牌或API密钥
+    if (adminToken || apiKey) {
+      // 这里延迟200ms再执行页面切换，给加载动画一个显示的时间
+      setTimeout(() => {
+        activePage.value = page;
+
+        // 页面已经切换到admin，AdminPage组件会自动验证
+        // 等待AdminPage组件完成验证后隐藏加载状态
+        setTimeout(() => {
+          isLoading.value = false;
+        }, 500); // 给予足够的时间让验证完成
+      }, 200);
+    } else {
+      // 没有令牌，直接切换到管理页面（将显示登录界面）
+      setTimeout(() => {
+        activePage.value = page;
+        isLoading.value = false;
+      }, 200);
+    }
+  } else {
+    // 不是导航到管理页面，正常切换
+    setTimeout(() => {
+      activePage.value = page;
+      // 如果不是查看分享页，清除slug
+      if (page !== "paste-view") {
+        pasteSlug.value = null;
+      }
+      // 如果需要，更新URL
+      updateUrl();
+
+      // 添加调试日志
+      console.log(`页面从 ${prevPage} 切换到 ${page}`);
+    }, 0);
+  }
 };
 
 // 更新URL地址，保持与当前视图同步
@@ -251,12 +282,34 @@ onBeforeUnmount(() => {
   }
 });
 
+// 添加处理验证事件的函数
+const handleAuthVerified = (result) => {
+  console.log("验证完成，结果:", result.success ? "成功" : "失败");
+  // 无论验证成功或失败，都隐藏加载状态
+  isLoading.value = false;
+};
+
+// 处理登录成功事件
+const handleLoginSuccess = () => {
+  console.log("登录成功");
+  isLoading.value = false;
+};
+
+// 处理登录失败事件
+const handleLoginFailed = () => {
+  console.log("登录失败");
+  isLoading.value = false;
+};
+
 // 初始设置
 updateTheme();
 </script>
 
 <template>
   <div :class="['app-container min-h-screen transition-colors duration-200', darkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-900']">
+    <!-- 添加加载组件 -->
+    <LoadingOverlay :visible="isLoading" :dark-mode="darkMode" :text="loadingText" />
+
     <header :class="['sticky top-0 z-50 shadow-sm transition-colors', darkMode ? 'bg-gray-800' : 'bg-white']">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
@@ -472,25 +525,25 @@ updateTheme();
     </header>
 
     <main class="flex-1 flex flex-col">
-      <!-- 根据当前活动页面显示不同内容 -->
-      <div v-if="activePage === 'home'" class="transition-opacity duration-300 flex-1 flex flex-col" :class="{ 'opacity-0': transitioning }">
-        <MarkdownEditor :darkMode="darkMode" />
+      <!-- 根据activePage显示不同的内容 -->
+      <div v-if="activePage === 'home'" class="flex-1 flex flex-col">
+        <MarkdownEditor :dark-mode="darkMode" class="flex-1" />
       </div>
-      <div v-else-if="activePage === 'upload'" class="transition-opacity duration-300 flex-1 flex flex-col" :class="{ 'opacity-0': transitioning }">
-        <FileUploadPage :darkMode="darkMode" />
+
+      <div v-else-if="activePage === 'upload'" class="flex-1 flex flex-col">
+        <FileUploadPage :dark-mode="darkMode" class="flex-1" />
       </div>
-      <div v-else-if="activePage === 'admin'" class="transition-opacity duration-300 flex-1 flex flex-col" :class="{ 'opacity-0': transitioning }">
-        <AdminPage :dark-mode="darkMode" class="flex-1 flex flex-col" />
+
+      <div v-else-if="activePage === 'admin'" class="flex-1 flex flex-col">
+        <AdminPage :dark-mode="darkMode" @auth-verified="handleAuthVerified" @login-success="handleLoginSuccess" @login-failed="handleLoginFailed" />
       </div>
-      <div
-          v-else-if="activePage === 'paste-view' && pasteSlug"
-          class="transition-opacity duration-300 flex-1 flex flex-col"
-          :class="{ 'opacity-0': transitioning, dark: darkMode }"
-      >
-        <PasteView :slug="pasteSlug" :dark-mode="darkMode" />
+
+      <div v-else-if="activePage === 'paste-view'" class="flex-1 flex flex-col">
+        <PasteView :slug="pasteSlug" :dark-mode="darkMode" class="flex-1" />
       </div>
-      <div v-else-if="activePage === 'file-view' && fileSlug" class="transition-opacity duration-300 flex-1 flex flex-col" :class="{ 'opacity-0': transitioning, dark: darkMode }">
-        <FileView :slug="fileSlug" :dark-mode="darkMode" />
+
+      <div v-else-if="activePage === 'file-view'" class="flex-1 flex flex-col">
+        <FileView :slug="fileSlug" :dark-mode="darkMode" class="flex-1" />
       </div>
     </main>
 
