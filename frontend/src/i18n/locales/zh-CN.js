@@ -52,6 +52,8 @@ export default {
     errorPrefix: "错误",
     errorCreateShareFailed: "创建分享失败",
     qrCodeDownloaded: "二维码已下载",
+    onlyAllowedChars: "仅允许使用字母、数字、-和_",
+    invalidFormat: "无效格式，只允许使用字母、数字、-和_",
     form: {
       remark: "备注(可选)",
       remarkPlaceholder: "添加备注信息...",
@@ -152,6 +154,8 @@ export default {
     uploadPageTitle: "文件上传",
     qrCodeDownloadSuccess: "二维码已开始下载",
     delete: "删除",
+    onlyAllowedChars: "仅允许使用字母、数字、-和_",
+    invalidFormat: "无效格式，只允许使用字母、数字、-和_",
   },
   paste: {
     view: "文本分享",
