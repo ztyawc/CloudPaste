@@ -151,6 +151,19 @@
             </svg>
           </button>
 
+          <!-- 复制原始文本直链按钮 -->
+          <button
+              @click="copyRawTextLink"
+              class="ml-2 p-1 rounded-md transition-colors"
+              :class="darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'"
+              :title="$t('markdown.copyRawLink')"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.172 13.828a4 4 0 015.656 0l4 4a4 4 0 01-5.656 5.656l-1.102-1.101" />
+            </svg>
+          </button>
+
           <span class="ml-2 text-xs" :class="darkMode ? 'text-gray-500' : 'text-gray-400'">{{ countdown }} {{ $t("markdown.disappearIn") }}</span>
         </div>
       </div>
@@ -193,7 +206,7 @@ import { useI18n } from "vue-i18n";
 import Vditor from "vditor";
 import "vditor/dist/index.css";
 import { api } from "../api";
-import { createPaste } from "../api/pasteService";
+import { createPaste, getRawPasteUrl } from "../api/pasteService";
 import { useRouter, useRoute } from "vue-router";
 import QRCode from "qrcode";
 
@@ -234,6 +247,9 @@ let apiKeyValidationTimer = null;
 let lastValidatedApiKey = null;
 let lastValidationTime = 0;
 const VALIDATION_DEBOUNCE_TIME = 2000; // 2秒内不重复验证相同的密钥
+
+// 临时保存当前分享的密码
+const currentSharePassword = ref("");
 
 // 检查用户权限状态
 const checkPermissionStatus = async () => {
@@ -895,6 +911,9 @@ const saveContent = async () => {
     // 显示分享链接 - 从result中提取slug的方式
     shareLink.value = `${window.location.origin}/paste/${result.slug}`;
 
+    // 保存当前分享的密码，用于复制直链
+    currentSharePassword.value = formData.value.password || "";
+
     // 启动倒计时，倒计时结束后隐藏分享链接
     startCountdown();
 
@@ -941,6 +960,8 @@ const startCountdown = () => {
     if (countdown.value <= 0) {
       clearInterval(countdownTimer);
       shareLink.value = "";
+      // 清除当前分享的密码
+      currentSharePassword.value = "";
     }
   }, 1000);
 };
@@ -953,6 +974,30 @@ const copyShareLink = () => {
       .writeText(shareLink.value)
       .then(() => {
         savingStatus.value = t("markdown.linkCopied");
+        setTimeout(() => {
+          savingStatus.value = "";
+        }, 2000);
+      })
+      .catch((err) => {
+        console.error("复制失败:", err);
+        savingStatus.value = t("markdown.copyFailed");
+      });
+};
+
+// 复制原始文本直链到剪贴板
+const copyRawTextLink = () => {
+  if (!shareLink.value) return;
+
+  // 从shareLink中提取slug
+  const slug = shareLink.value.split("/").pop();
+
+  // 构建原始文本直链URL，使用当前分享的密码（如果有）
+  const rawLink = getRawPasteUrl(slug, currentSharePassword.value || null);
+
+  navigator.clipboard
+      .writeText(rawLink)
+      .then(() => {
+        savingStatus.value = t("markdown.rawLinkCopied");
         setTimeout(() => {
           savingStatus.value = "";
         }, 2000);

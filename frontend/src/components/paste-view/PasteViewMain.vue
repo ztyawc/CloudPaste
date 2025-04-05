@@ -2,7 +2,7 @@
 // PasteViewMain组件 - 主组件，整合各个功能模块
 // 负责协调预览、大纲和编辑功能，管理全局状态和数据流
 import { ref, onMounted, onBeforeUnmount, watch, nextTick, computed } from "vue";
-import { getPaste } from "../../api/pasteService";
+import { getPaste, getRawPasteUrl } from "../../api/pasteService";
 import { updatePaste } from "../../api/adminService";
 import PasteViewPreview from "./PasteViewPreview.vue";
 import PasteViewOutline from "./PasteViewOutline.vue";
@@ -493,6 +493,36 @@ const copyContentToClipboard = () => {
   }
 };
 
+// 复制原始文本链接到剪贴板
+const copyRawLink = () => {
+  if (!paste.value || !paste.value.slug) {
+    error.value = "没有可复制的原始链接";
+    return;
+  }
+
+  try {
+    // 从getRawPasteUrl获取原始链接
+    const rawLink = getRawPasteUrl(paste.value.slug, paste.value.plain_password || null);
+
+    // 复制链接到剪贴板
+    navigator.clipboard
+        .writeText(rawLink)
+        .then(() => {
+          error.value = "复制成功：原始链接已复制到剪贴板";
+          setTimeout(() => {
+            error.value = "";
+          }, 3000);
+        })
+        .catch((err) => {
+          console.error("复制失败:", err);
+          error.value = "复制原始链接失败，请手动复制";
+        });
+  } catch (e) {
+    console.error("复制原始链接失败:", e);
+    error.value = "复制原始链接失败，请手动复制";
+  }
+};
+
 // 切换调试信息显示 - 开发辅助功能
 const toggleDebug = () => {
   enableDebug.value = !enableDebug.value;
@@ -753,6 +783,16 @@ const handleStorageChange = (e) => {
                 :class="darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-800' : 'border-gray-300 text-gray-700 hover:bg-gray-50'"
             >
               复制内容
+            </button>
+
+            <!-- 复制原始链接按钮 -->
+            <button
+                v-if="paste && paste.slug"
+                @click="copyRawLink"
+                class="px-4 py-1.5 text-sm font-medium border rounded-md"
+                :class="darkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-800' : 'border-gray-300 text-gray-700 hover:bg-gray-50'"
+            >
+              raw
             </button>
 
             <!-- 编辑按钮 - 管理员和有权限的API密钥创建者可见 -->

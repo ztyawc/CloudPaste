@@ -89,5 +89,23 @@ export function deleteUserPaste(id) {
  * @returns {Promise<Object>} 删除结果
  */
 export function deleteUserPastes(ids) {
-  return del("/user/pastes", { ids });
+  return del(`/user/pastes`, { ids });
+}
+
+/**
+ * 获取文本分享的原始内容链接
+ * @param {string} slug - 文本分享链接后缀
+ * @param {string} [password] - 访问密码（如果需要）
+ * @returns {string} 原始文本链接
+ */
+export function getRawPasteUrl(slug, password = null) {
+  // 构建基础URL
+  const baseUrl = `${window.location.origin}/api/paste/raw/${slug}`;
+
+  // 如果提供了密码，添加到URL参数中
+  if (password) {
+    return `${baseUrl}?password=${encodeURIComponent(password)}`;
+  }
+
+  return baseUrl;
 }

@@ -195,9 +195,9 @@ const validateApiKey = async (apiKey) => {
       // 触发storage事件，通知其他组件权限已更新
       // localStorage事件只在其他窗口触发，这里我们手动触发一个自定义事件
       window.dispatchEvent(
-        new CustomEvent("api-key-permissions-updated", {
-          detail: { permissions },
-        })
+          new CustomEvent("api-key-permissions-updated", {
+            detail: { permissions },
+          })
       );
 
       console.log("API密钥验证成功，权限已更新:", permissions);
@@ -219,9 +219,9 @@ const validateApiKey = async (apiKey) => {
 
     // 通知其他组件权限已清除
     window.dispatchEvent(
-      new CustomEvent("api-key-permissions-updated", {
-        detail: { permissions: null },
-      })
+        new CustomEvent("api-key-permissions-updated", {
+          detail: { permissions: null },
+        })
     );
   }
 };
@@ -280,7 +280,7 @@ const handleLogout = () => {
 <template>
   <div class="h-full flex flex-col">
     <!-- 根据登录状态显示登录页面或管理面板 -->
-    <AdminLogin v-if="!isLoggedIn" @login-success="handleLoginSuccess" class="flex-1" />
+    <AdminLogin v-if="!isLoggedIn" :darkMode="darkMode" @login-success="handleLoginSuccess" class="flex-1" />
     <AdminPanel v-else :darkMode="darkMode" :loginType="loginType" :permissions="userPermissions" @logout="handleLogout" class="flex-1" />
   </div>
 </template>
