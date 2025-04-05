@@ -361,6 +361,7 @@ export default {
           currentPasswordRequired: "请输入当前密码",
           newFieldRequired: "请至少填写新密码或新用户名",
           updateInfoError: "更新信息失败",
+          passwordSame: "新密码不能与当前密码相同",
         },
       },
     },

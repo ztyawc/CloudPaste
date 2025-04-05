@@ -1803,6 +1803,11 @@ app.post("/api/admin/change-password", authMiddleware, async (c) => {
     throw new HTTPException(ApiStatus.UNAUTHORIZED, { message: "当前密码错误" });
   }
 
+  // 检查新密码是否与当前密码相同
+  if (newPassword && (await verifyPassword(newPassword, admin.password))) {
+    throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "新密码不能与当前密码相同" });
+  }
+
   // 如果提供了新用户名，先检查用户名是否已存在
   if (newUsername && newUsername.trim() !== "") {
     const existingAdmin = await db.prepare(`SELECT id FROM ${DbTables.ADMINS} WHERE username = ? AND id != ?`).bind(newUsername, adminId).first();

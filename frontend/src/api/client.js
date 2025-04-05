@@ -118,6 +118,9 @@ export async function fetchApi(endpoint, options = {}) {
         const isFilePasswordVerify = endpoint.match(/^(\/)?public\/files\/[a-zA-Z0-9]+\/verify$/i) && options.method === "POST";
         const hasPasswordInBody = options.body && (typeof options.body === "string" ? options.body.includes("password") : options.body.password);
 
+        // 检查是否是修改密码请求
+        const isChangePasswordRequest = endpoint.includes("/admin/change-password") && options.method === "POST";
+
         const isPasswordVerify = (isTextPasswordVerify || isFilePasswordVerify) && hasPasswordInBody;
 
         // 如果是密码验证请求，直接返回错误，不清除令牌
@@ -126,6 +129,15 @@ export async function fetchApi(endpoint, options = {}) {
 
           // 确保返回后端提供的具体错误信息
           const errorMessage = responseData && responseData.message ? responseData.message : "密码错误";
+
+          throw new Error(errorMessage);
+        }
+
+        // 如果是修改密码请求，可能是当前密码验证失败
+        if (isChangePasswordRequest) {
+
+          // 返回具体的错误信息，通常是"当前密码错误"
+          const errorMessage = responseData && responseData.message ? responseData.message : "验证失败";
 
           throw new Error(errorMessage);
         }

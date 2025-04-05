@@ -362,6 +362,7 @@ export default {
           currentPasswordRequired: "Current password is required",
           newFieldRequired: "Please fill in either new password or new username",
           updateInfoError: "Failed to update information",
+          passwordSame: "New password cannot be the same as current password",
         },
       },
     },
