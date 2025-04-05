@@ -10,6 +10,7 @@ DROP TABLE IF EXISTS admin_tokens;
 DROP TABLE IF EXISTS admins;
 DROP TABLE IF EXISTS pastes;
 DROP TABLE IF EXISTS file_passwords;
+DROP TABLE IF EXISTS paste_passwords;
 
 -- 创建pastes表 - 存储文本分享数据
 CREATE TABLE pastes (
@@ -20,7 +21,7 @@ CREATE TABLE pastes (
   password TEXT,
   expires_at DATETIME,
   max_views INTEGER,
-  views INTEGER DEFAULT 0,  
+  views INTEGER DEFAULT 0,
   created_by TEXT,                     -- 创建者标识（管理员ID或API密钥ID）
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -114,13 +115,21 @@ CREATE INDEX idx_files_expires_at ON files(expires_at);
 
 -- 创建file_passwords表 - 存储文件密码
 CREATE TABLE file_passwords (
-  id TEXT PRIMARY KEY,
   file_id TEXT NOT NULL,
   plain_password TEXT NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE
-);  
+);
+
+-- 创建paste_passwords表 - 存储文本密码
+CREATE TABLE paste_passwords (
+  paste_id TEXT NOT NULL,
+  plain_password TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (paste_id) REFERENCES pastes(id) ON DELETE CASCADE
+);
 
 -- 创建system_settings表 - 存储系统设置
 CREATE TABLE system_settings (

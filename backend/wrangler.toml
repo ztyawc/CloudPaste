@@ -1,5 +1,5 @@
 name = "cloudpaste-backend"
-main = "worker.js"
+main = "workers.js"
 compatibility_date = "2023-05-18"
 
 # 环境变量

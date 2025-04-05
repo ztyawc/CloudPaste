@@ -1,9 +1,12 @@
 /**
+ * 这是旧版worker仅功参考，已弃用
+ */
+
+/**
  * CloudPaste API Server
  * 基于Cloudflare Worker的后端服务
  * 使用Hono框架实现RESTful API
  */
-
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
@@ -1628,6 +1631,21 @@ async function initDatabase(db) {
       )
       .run();
 
+  // 创建文本密码表
+  await db
+      .prepare(
+          `
+    CREATE TABLE IF NOT EXISTS ${DbTables.PASTE_PASSWORDS} (
+      paste_id TEXT PRIMARY KEY,
+      plain_password TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (paste_id) REFERENCES ${DbTables.PASTES}(id) ON DELETE CASCADE
+    )
+  `
+      )
+      .run();
+
   // 创建系统设置表
   await db
       .prepare(
@@ -1801,11 +1819,6 @@ app.post("/api/admin/change-password", authMiddleware, async (c) => {
 
   if (!(await verifyPassword(currentPassword, admin.password))) {
     throw new HTTPException(ApiStatus.UNAUTHORIZED, { message: "当前密码错误" });
-  }
-
-  // 检查新密码是否与当前密码相同
-  if (newPassword && (await verifyPassword(newPassword, admin.password))) {
-    throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "新密码不能与当前密码相同" });
   }
 
   // 如果提供了新用户名，先检查用户名是否已存在
