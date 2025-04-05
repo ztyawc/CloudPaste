@@ -501,7 +501,7 @@ onMounted(() => {
   list-style-type: decimal;
 }
 
-/* 无序列表样式 */
+/* 无序列表样式 - 确保普通无序列表显示圆点 */
 :deep(.vditor-reset ul) {
   list-style-type: disc;
 }
@@ -614,9 +614,29 @@ onMounted(() => {
   top: -0.1em;
 }
 
-:deep(.vditor-reset ul li) {
-  list-style-type: none;
-  position: relative;
+/* 只对任务列表项应用list-style-type: none */
+:deep(.vditor-reset ul li.vditor-task) {
+  list-style-type: none !important;
+}
+
+/* 确保高优先级覆盖所有嵌套级别的任务列表 */
+:deep(.vditor-reset ul li.vditor-task),
+:deep(.vditor-reset ul ul li.vditor-task),
+:deep(.vditor-reset ul ul ul li.vditor-task) {
+  list-style-type: none !important;
+}
+
+/* 确保普通列表项的样式不受影响 */
+:deep(.vditor-reset ul li:not(.vditor-task)) {
+  list-style-type: disc;
+}
+
+:deep(.vditor-reset ul ul li:not(.vditor-task)) {
+  list-style-type: circle;
+}
+
+:deep(.vditor-reset ul ul ul li:not(.vditor-task)) {
+  list-style-type: square;
 }
 
 /* 确保任务列表项交互状态更明显 */
