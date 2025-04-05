@@ -1,29 +1,44 @@
 /**
- * Vercel专用构建脚本
- * 用于在构建时生成包含环境变量的配置文件
+ * Vercel构建脚本
+ * 用于在构建时动态生成配置文件
  */
 const fs = require("fs");
 const path = require("path");
 
-// 获取环境变量，如果不存在则使用默认值
-const backendUrl = process.env.VITE_BACKEND_URL || "http://localhost:8787";
-
-console.log(`Vercel构建: 使用后端URL ${backendUrl}`);
-
-// 配置内容
-const configContent = `// 运行时配置 - 由Vercel构建脚本生成
-window.appConfig = {
-  backendUrl: '${backendUrl}'
-};
-`;
-
-// 确保public目录存在
-const publicDir = path.resolve(__dirname, "public");
-if (!fs.existsSync(publicDir)) {
-  fs.mkdirSync(publicDir, { recursive: true });
+// 创建dist目录（如果不存在）
+const distPath = path.join(__dirname, "dist");
+if (!fs.existsSync(distPath)) {
+  fs.mkdirSync(distPath, { recursive: true });
 }
 
-// 写入配置文件
-fs.writeFileSync(path.resolve(publicDir, "config.js"), configContent, "utf8");
+// 获取环境变量，后端API URL
+const backendUrl = process.env.VITE_BACKEND_URL || "https://cloudpaste-backend.your-domain.com";
 
-console.log("✅ 配置文件已生成");
+// 生成配置文件
+console.log("Generating config.js with backendUrl:", backendUrl);
+const configContent = `// 运行时配置
+window.appConfig = {
+  backendUrl: '${backendUrl}'
+};`;
+
+// 写入配置文件到dist目录
+fs.writeFileSync(path.join(distPath, "config.js"), configContent);
+
+// 确保_redirects文件复制到构建输出目录
+const redirectsSourcePath = path.join(__dirname, "public", "_redirects");
+const redirectsDestPath = path.join(distPath, "_redirects");
+
+if (fs.existsSync(redirectsSourcePath)) {
+  console.log("Copying _redirects file to dist directory");
+  fs.copyFileSync(redirectsSourcePath, redirectsDestPath);
+}
+
+// 运行正常的构建脚本
+console.log("Running build command...");
+const { execSync } = require("child_process");
+try {
+  execSync("npm run build", { stdio: "inherit" });
+} catch (error) {
+  console.error("Build failed:", error);
+  process.exit(1);
+}

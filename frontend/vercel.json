@@ -43,6 +43,10 @@
       },
       "continue": true
     },
+    {
+      "src": "/api/paste/raw/(.*)",
+      "dest": "/api/paste/raw/$1"
+    },
     { "handle": "filesystem" },
     { "src": "/paste/.*", "dest": "/index.html" },
     { "src": "/file/.*", "dest": "/index.html" },
