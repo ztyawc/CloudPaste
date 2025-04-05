@@ -1,6 +1,0 @@
-# 确保API路径被正确处理
-/api/paste/raw/* /api/paste/raw/:splat 200
-/api/* /api/:splat 200
-
-# SPA路由 - 将所有其他请求重定向到index.html
-/* /index.html 200 

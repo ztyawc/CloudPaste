@@ -26,12 +26,6 @@ export async function onRequest(context) {
     });
   }
 
-  // 处理raw文本API请求
-  if (url.pathname.startsWith("/api/paste/raw/")) {
-    // 这些请求应该直接传递到后端API，不做任何处理
-    return next();
-  }
-
   // 对于其他请求，正常处理
   return next();
 }
