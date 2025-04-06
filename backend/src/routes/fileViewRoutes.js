@@ -11,19 +11,19 @@ import { generatePresignedUrl, deleteFileFromS3 } from "../utils/s3Utils";
  */
 async function getFileBySlug(db, slug, includePassword = true) {
   const fields = includePassword
-    ? "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.password, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug"
-    : "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug";
+      ? "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.password, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug"
+      : "f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, f.remark, f.max_views, f.views, f.expires_at, f.created_at, f.s3_config_id, f.created_by, f.use_proxy, f.slug";
 
   return await db
-    .prepare(
-      `
+      .prepare(
+          `
       SELECT ${fields}
       FROM ${DbTables.FILES} f
       WHERE f.slug = ?
     `
-    )
-    .bind(slug)
-    .first();
+      )
+      .bind(slug)
+      .first();
 }
 
 /**
@@ -121,8 +121,8 @@ async function incrementAndCheckFileViews(db, file, encryptionSecret) {
 
   // 重新获取更新后的文件信息
   const updatedFile = await db
-    .prepare(
-      `
+      .prepare(
+          `
       SELECT 
         f.id, f.filename, f.storage_path, f.s3_url, f.mimetype, f.size, 
         f.remark, f.password, f.max_views, f.views, f.created_by,
@@ -130,9 +130,9 @@ async function incrementAndCheckFileViews(db, file, encryptionSecret) {
       FROM ${DbTables.FILES} f
       WHERE f.id = ?
     `
-    )
-    .bind(file.id)
-    .first();
+      )
+      .bind(file.id)
+      .first();
 
   // 检查是否超过最大访问次数
   if (updatedFile.max_views && updatedFile.max_views > 0 && updatedFile.views > updatedFile.max_views) {
@@ -198,8 +198,19 @@ async function handleFileDownload(slug, env, request, forceDownload = false) {
       return new Response("文件不可访问", { status: 403 });
     }
 
-    // 增加访问次数并检查限制
-    const result = await incrementAndCheckFileViews(db, file, encryptionSecret);
+    // 解析URL查询参数以检查是否已计数
+    const url = new URL(request.url);
+    const skipCounter = url.searchParams.get("counted") === "true";
+
+    // 只有在需要计数（counted参数不为true）时才增加访问次数
+    let result;
+    if (!skipCounter) {
+      // 增加访问次数并检查限制
+      result = await incrementAndCheckFileViews(db, file, encryptionSecret);
+    } else {
+      // 不增加计数，但仍需要获取最新文件信息
+      result = { isExpired: false, file };
+    }
 
     // 如果文件已到达最大访问次数限制
     if (result.isExpired) {
