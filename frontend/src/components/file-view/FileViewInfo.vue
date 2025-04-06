@@ -259,9 +259,6 @@ const processedPreviewUrl = computed(() => {
     previewUrl += (previewUrl.includes("?") ? "&" : "?") + `password=${encodeURIComponent(filePassword)}`;
   }
 
-  // 2. 添加counted=true参数，防止重复计数
-  previewUrl += (previewUrl.includes("?") ? "&" : "?") + "counted=true";
-
   return previewUrl;
 });
 
