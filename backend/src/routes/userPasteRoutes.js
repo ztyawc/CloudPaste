@@ -46,15 +46,15 @@ userPasteRoutes.post("/api/paste", async (c) => {
 
     // 查询数据库中的API密钥记录
     const keyRecord = await db
-      .prepare(
-        `
+        .prepare(
+            `
       SELECT id, name, text_permission, expires_at
       FROM ${DbTables.API_KEYS}
       WHERE key = ?
     `
-      )
-      .bind(apiKey)
-      .first();
+        )
+        .bind(apiKey)
+        .first();
 
     // 如果密钥存在且有文本权限
     if (keyRecord && keyRecord.text_permission === 1) {
@@ -66,15 +66,15 @@ userPasteRoutes.post("/api/paste", async (c) => {
 
         // 更新最后使用时间
         await db
-          .prepare(
-            `
+            .prepare(
+                `
           UPDATE ${DbTables.API_KEYS}
           SET last_used = ?
           WHERE id = ?
         `
-          )
-          .bind(getLocalTimeString(), keyRecord.id)
-          .run();
+            )
+            .bind(getLocalTimeString(), keyRecord.id)
+            .run();
       }
     }
   }
@@ -178,8 +178,8 @@ userPasteRoutes.post("/api/paste/:slug", async (c) => {
   }
 });
 
-// 获取文本分享的原始内容 (raw)
-userPasteRoutes.get("/api/paste/raw/:slug", async (c) => {
+// 直接访问raw内容的路由
+userPasteRoutes.get("/raw/:slug", async (c) => {
   const db = c.env.DB;
   const slug = c.req.param("slug");
   const password = c.req.query("password"); // 从查询参数中获取密码
@@ -211,7 +211,6 @@ userPasteRoutes.get("/api/paste/raw/:slug", async (c) => {
     await incrementPasteViews(db, paste.id, paste.max_views);
 
     // 返回原始文本内容
-    // 设置Content-Type为纯文本，并直接返回内容
     return new Response(paste.content, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
@@ -272,8 +271,8 @@ userPasteRoutes.get("/api/user/pastes/:id", apiKeyTextMiddleware, async (c) => {
   try {
     // 获取用户自己创建的文本
     const paste = await db
-      .prepare(
-        `
+        .prepare(
+            `
         SELECT 
           id, slug, content, remark,
           password IS NOT NULL as has_password,
@@ -281,9 +280,9 @@ userPasteRoutes.get("/api/user/pastes/:id", apiKeyTextMiddleware, async (c) => {
         FROM ${DbTables.PASTES}
         WHERE id = ? AND created_by = ?
       `
-      )
-      .bind(id, `apikey:${apiKeyId}`)
-      .first();
+        )
+        .bind(id, `apikey:${apiKeyId}`)
+        .first();
 
     if (!paste) {
       return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "文本不存在或无权访问"), ApiStatus.NOT_FOUND);

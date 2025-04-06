@@ -4,6 +4,7 @@
  */
 
 import { get, post, put, del } from "./client";
+import { API_BASE_URL } from "./config";
 
 /**
  * 创建新的文本分享
@@ -99,8 +100,8 @@ export function deleteUserPastes(ids) {
  * @returns {string} 原始文本链接
  */
 export function getRawPasteUrl(slug, password = null) {
-  // 构建基础URL
-  const baseUrl = `${window.location.origin}/api/paste/raw/${slug}`;
+  // 使用API_BASE_URL常量，不使用API_PREFIX前缀
+  const baseUrl = `${API_BASE_URL}/raw/${slug}`;
 
   // 如果提供了密码，添加到URL参数中
   if (password) {
