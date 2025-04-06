@@ -150,6 +150,8 @@ export default {
     fileQrCode: "File Link QR Code",
     downloadQrCode: "Download QR Code",
     deletedSuccess: "File deleted successfully",
+    deletedRedirectMsg: "Returning to the homepage shortly",
+    redirectCountdown: "Redirecting in {seconds} seconds",
     deleteFailed: "Delete failed: {message}",
     permissionRequired: "You need to login as admin or use an API key with file permission. Please",
     loginOrAuth: "login/authorize",

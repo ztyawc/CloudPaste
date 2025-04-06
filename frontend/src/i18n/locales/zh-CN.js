@@ -149,6 +149,8 @@ export default {
     fileQrCode: "文件链接二维码",
     downloadQrCode: "下载二维码",
     deletedSuccess: "文件已成功删除",
+    deletedRedirectMsg: "即将返回首页",
+    redirectCountdown: "{seconds}秒后自动跳转",
     deleteFailed: "删除失败: {message}",
     permissionRequired: "您需要登录管理员账号或使用有文件权限的API密钥。请",
     loginOrAuth: "登录/授权",
