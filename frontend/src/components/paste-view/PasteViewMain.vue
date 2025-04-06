@@ -9,6 +9,7 @@ import PasteViewOutline from "./PasteViewOutline.vue";
 import PasteViewEditor from "./PasteViewEditor.vue";
 import { formatExpiry, debugLog } from "./PasteViewUtils";
 import { api } from "../../api";
+import { ApiStatus } from "../../api/ApiStatus";
 
 // 定义环境变量
 const isDev = import.meta.env.DEV;
@@ -225,23 +226,37 @@ const loadPaste = async (password = null) => {
     checkApiKeyStatus();
   } catch (err) {
     console.error("获取文本分享失败:", err);
-    // 根据错误类型设置友好的错误提示
-    if (err.message && (err.message.includes("密码错误") || err.message.includes("密码不正确"))) {
+    // 优先使用HTTP状态码判断错误类型，更可靠
+    if (err.status === ApiStatus.UNAUTHORIZED || err.response?.status === ApiStatus.UNAUTHORIZED || err.code === ApiStatus.UNAUTHORIZED) {
+      // 401 Unauthorized - 密码错误
       error.value = "密码验证失败，请重试";
       // 确保密码输入框仍然显示
       needPassword.value = true;
-    } else if (err.message && (err.message.includes("文本分享已过期") || err.message.includes("最大查看次数"))) {
+    } else if (err.status === ApiStatus.GONE || err.response?.status === ApiStatus.GONE || err.code === ApiStatus.GONE) {
+      // 410 Gone - 资源已过期或达到最大查看次数
       error.value = "此文本分享已不可访问：达到最大查看次数或已过期";
-      // 这是内容过期错误，不需要密码输入框
       needPassword.value = false;
-    } else if (err.message && (err.message.includes("找不到") || err.message.includes("不存在") || err.message.includes("404"))) {
+    } else if (err.status === ApiStatus.NOT_FOUND || err.response?.status === ApiStatus.NOT_FOUND || err.code === ApiStatus.NOT_FOUND) {
+      // 404 Not Found - 资源不存在
       error.value = "此文本分享不存在或已被删除";
-      // 这是内容不存在错误，不需要密码输入框
       needPassword.value = false;
     } else {
-      error.value = err.message || "获取文本分享失败";
-      // 其他错误，一般也不需要密码输入框
-      needPassword.value = false;
+      // 后备判断：基于错误消息内容判断错误类型（保持兼容性）
+      if (err.message && (err.message.includes("密码错误") || err.message.includes("密码不正确") || err.message.includes("401"))) {
+        error.value = "密码验证失败，请重试";
+        // 确保密码输入框仍然显示
+        needPassword.value = true;
+      } else if (err.message && (err.message.includes("文本分享已过期") || err.message.includes("最大查看次数") || err.message.includes("410"))) {
+        error.value = "此文本分享已不可访问：达到最大查看次数或已过期";
+        needPassword.value = false;
+      } else if (err.message && (err.message.includes("找不到") || err.message.includes("不存在") || err.message.includes("404"))) {
+        error.value = "此文本分享不存在或已被删除";
+        needPassword.value = false;
+      } else {
+        error.value = err.message || "获取文本分享失败";
+        // 除非明确知道是401密码错误，其他错误默认不显示密码输入框
+        needPassword.value = false;
+      }
     }
   } finally {
     loading.value = false;

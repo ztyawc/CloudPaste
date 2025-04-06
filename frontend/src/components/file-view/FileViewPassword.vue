@@ -9,33 +9,33 @@
         <label for="password" class="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">密码</label>
         <div class="relative">
           <input
-            :type="showPassword ? 'text' : 'password'"
-            id="password"
-            v-model="password"
-            placeholder="请输入访问密码"
-            class="block w-full px-3 py-2 rounded-md shadow-sm border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white dark:bg-gray-700 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:focus:ring-offset-gray-800 password-input"
-            :disabled="loading"
+              :type="showPassword ? 'text' : 'password'"
+              id="password"
+              v-model="password"
+              placeholder="请输入访问密码"
+              class="block w-full px-3 py-2 rounded-md shadow-sm border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white dark:bg-gray-700 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:focus:ring-offset-gray-800 password-input"
+              :disabled="loading"
           />
           <button
-            type="button"
-            @click="togglePasswordVisibility"
-            class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300"
+              type="button"
+              @click="togglePasswordVisibility"
+              class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300"
           >
             <svg v-if="showPassword" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"
               />
             </svg>
             <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
               />
             </svg>
           </button>
@@ -46,9 +46,9 @@
 
       <!-- 提交按钮 -->
       <button
-        type="submit"
-        class="w-full px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-offset-gray-800"
-        :disabled="loading || !password"
+          type="submit"
+          class="w-full px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-offset-gray-800"
+          :disabled="loading || !password"
       >
         <span v-if="loading">
           <svg class="animate-spin h-5 w-5 mr-2 inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -66,6 +66,7 @@
 <script setup>
 import { ref, watch, defineProps, defineEmits } from "vue";
 import { api } from "../../api"; // 导入api模块
+import { ApiStatus } from "../../api/ApiStatus"; // 导入API状态码常量
 
 const props = defineProps({
   fileId: {
@@ -121,11 +122,27 @@ const verifyPassword = async () => {
     }
   } catch (err) {
     console.error("验证密码时出错:", err);
-    // 判断是否是密码错误
-    if (err.message && (err.message.includes("密码错误") || err.message.includes("密码不正确"))) {
+    // 优先使用HTTP状态码判断错误类型，更可靠
+    if (err.status === ApiStatus.UNAUTHORIZED || err.response?.status === ApiStatus.UNAUTHORIZED || err.code === ApiStatus.UNAUTHORIZED) {
+      // 401 Unauthorized - 密码错误
       error.value = "密码错误，请重新输入";
+    } else if (err.status === ApiStatus.GONE || err.response?.status === ApiStatus.GONE || err.code === ApiStatus.GONE) {
+      // 410 Gone - 资源已过期
+      error.value = "此文件已过期或不可访问";
+    } else if (err.status === ApiStatus.NOT_FOUND || err.response?.status === ApiStatus.NOT_FOUND || err.code === ApiStatus.NOT_FOUND) {
+      // 404 Not Found - 资源不存在
+      error.value = "此文件不存在或已被删除";
     } else {
-      error.value = err.message || "验证时发生错误，请稍后重试";
+      // 后备判断：基于错误消息内容判断错误类型（保持兼容性）
+      if (err.message && (err.message.includes("密码错误") || err.message.includes("密码不正确") || err.message.includes("401"))) {
+        error.value = "密码错误，请重新输入";
+      } else if (err.message && (err.message.includes("已过期") || err.message.includes("410"))) {
+        error.value = "此文件已过期或不可访问";
+      } else if (err.message && (err.message.includes("找不到") || err.message.includes("不存在") || err.message.includes("404"))) {
+        error.value = "此文件不存在或已被删除";
+      } else {
+        error.value = err.message || "验证时发生错误，请稍后重试";
+      }
     }
   } finally {
     loading.value = false;
@@ -134,12 +151,12 @@ const verifyPassword = async () => {
 
 // 清除表单
 watch(
-  () => props.fileId,
-  () => {
-    password.value = "";
-    error.value = "";
-    loading.value = false;
-  }
+    () => props.fileId,
+    () => {
+      password.value = "";
+      error.value = "";
+      loading.value = false;
+    }
 );
 </script>
 

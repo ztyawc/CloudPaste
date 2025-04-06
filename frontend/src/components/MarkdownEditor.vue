@@ -209,6 +209,8 @@ import { api } from "../api";
 import { createPaste, getRawPasteUrl } from "../api/pasteService";
 import { useRouter, useRoute } from "vue-router";
 import QRCode from "qrcode";
+import { getFullApiUrl } from "../api/config.js";
+import { ApiStatus } from "../api/ApiStatus";
 
 // 使用i18n
 const { t } = useI18n();
@@ -923,7 +925,13 @@ const saveContent = async () => {
     console.error("创建分享失败:", error);
 
     // 针对403权限错误进行特殊处理
-    if ((error.message && error.message.includes("权限")) || error.message.includes("403")) {
+    if (
+        (error.message && error.message.includes("权限")) ||
+        error.status === ApiStatus.FORBIDDEN ||
+        error.response?.status === ApiStatus.FORBIDDEN ||
+        error.code === ApiStatus.FORBIDDEN ||
+        error.message.includes(ApiStatus.FORBIDDEN.toString())
+    ) {
       // 清除权限缓存并重新验证
       if (hasApiKey.value) {
         localStorage.removeItem("api_key_permissions");

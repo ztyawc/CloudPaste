@@ -4,6 +4,7 @@
  */
 
 import { getFullApiUrl } from "./config";
+import { ApiStatus } from "./ApiStatus"; // 导入API状态码常量
 
 /**
  * 添加认证令牌到请求头
@@ -110,7 +111,7 @@ export async function fetchApi(endpoint, options = {}) {
     // 如果响应不成功，抛出错误
     if (!response.ok) {
       // 特殊处理401未授权错误
-      if (response.status === 401) {
+      if (response.status === ApiStatus.UNAUTHORIZED) {
         console.error(`🚫 授权失败(${url}):`, responseData);
 
         // 判断是否是密码验证请求（文本或文件分享的密码验证）
@@ -135,7 +136,6 @@ export async function fetchApi(endpoint, options = {}) {
 
         // 如果是修改密码请求，可能是当前密码验证失败
         if (isChangePasswordRequest) {
-
           // 返回具体的错误信息，通常是"当前密码错误"
           const errorMessage = responseData && responseData.message ? responseData.message : "验证失败";
 
@@ -174,7 +174,7 @@ export async function fetchApi(endpoint, options = {}) {
       }
 
       // 对409状态码做特殊处理（链接后缀冲突或其他冲突）
-      if (response.status === 409) {
+      if (response.status === ApiStatus.CONFLICT) {
         console.error(`❌ 资源冲突错误(${url}):`, responseData);
         // 使用后端返回的具体错误信息，无论是字符串形式还是对象形式
         if (typeof responseData === "string") {
@@ -201,7 +201,7 @@ export async function fetchApi(endpoint, options = {}) {
       // 如果响应包含code字段
       if ("code" in responseData) {
         // 成功响应，code应该是200或201(创建成功)
-        if (responseData.code !== 200 && responseData.code !== 201) {
+        if (responseData.code !== ApiStatus.SUCCESS && responseData.code !== ApiStatus.CREATED) {
           console.error(`❌ API业务错误(${url}):`, responseData);
           throw new Error(responseData.message || "请求失败");
         }

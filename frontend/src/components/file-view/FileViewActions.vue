@@ -118,6 +118,8 @@
 import { ref, defineProps, defineEmits, computed, onMounted } from "vue";
 import { getAuthStatus } from "./FileViewUtils";
 import { api } from "../../api";
+import { ApiStatus } from "../../api/ApiStatus";
+import { getFullApiUrl } from "../../api/config";
 
 const props = defineProps({
   fileInfo: {
@@ -354,12 +356,22 @@ const downloadFile = () => {
         // 添加密码参数到下载URL
         downloadUrl = downloadUrl.includes("?") ? `${downloadUrl}&password=${encodeURIComponent(filePassword)}` : `${downloadUrl}?password=${encodeURIComponent(filePassword)}`;
       }
+
+      // 不再需要添加counted=true参数，下载端点默认不增加计数
     }
 
     window.open(downloadUrl, "_blank");
 
     // 如果是授权问题，提示刷新页面
-    if (err.message && (err.message.includes("403") || err.message.includes("401"))) {
+    if (
+        err.status === ApiStatus.FORBIDDEN ||
+        err.response?.status === ApiStatus.FORBIDDEN ||
+        err.status === ApiStatus.UNAUTHORIZED ||
+        err.response?.status === ApiStatus.UNAUTHORIZED ||
+        err.code === ApiStatus.FORBIDDEN ||
+        err.code === ApiStatus.UNAUTHORIZED ||
+        (err.message && (err.message.includes(ApiStatus.FORBIDDEN.toString()) || err.message.includes(ApiStatus.UNAUTHORIZED.toString())))
+    ) {
       alert("下载链接可能已过期，正在自动刷新获取新的下载链接。");
       emit("refresh-file-info");
     }
