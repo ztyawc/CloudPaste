@@ -370,7 +370,7 @@ cd CloudPaste/backend
    
    ![B21](./images/B2/B2-4.png)
 
-Regarding option 3 configuration, since the panel cannot configure it, you need to configure manually by [downloading B2 CLI](https://www.backblaze.com/docs/cloud-storage-command-line-tools) tool. For details, please refer to: "https://docs.cloudreve.org/use/policy/s3#backblaze-b2".
+Regarding option 3 configuration, since the panel cannot configure it, you need to configure manually by [downloading B2 CLI](https://www.backblaze.com/docs/cloud-storage-command-line-tools) tool. For details, please refer to: "https://docs.cloudreve.org/use/policy/s3#backblaze-b2 ".
 
 After downloading, in the corresponding download directory CMD, enter the following commands:
 

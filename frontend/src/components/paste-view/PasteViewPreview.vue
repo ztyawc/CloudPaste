@@ -200,6 +200,9 @@ const renderContentInternal = (content) => {
               subtree: true,
             });
 
+            // 添加代码块折叠功能
+            setupCodeBlockCollapse();
+
             // 自定义图片点击放大功能
             const images = previewElement.value.querySelectorAll("img");
             images.forEach((img) => {
@@ -318,6 +321,102 @@ onMounted(() => {
     renderContent(props.content);
   }
 });
+
+// 设置代码块折叠功能
+const setupCodeBlockCollapse = () => {
+  if (!previewElement.value) return;
+
+  // 查找所有代码块
+  const codeBlocks = previewElement.value.querySelectorAll('pre code[class*="language-"]');
+
+  codeBlocks.forEach((codeBlock) => {
+    // 避免重复处理
+    if (codeBlock.parentElement.getAttribute("data-collapsible") === "true") {
+      return;
+    }
+
+    // 标记已处理
+    codeBlock.parentElement.setAttribute("data-collapsible", "true");
+
+    // 获取语言类名
+    const languageClass = Array.from(codeBlock.classList).find((cls) => cls.startsWith("language-"));
+
+    // 提取语言名称
+    const language = languageClass ? languageClass.replace("language-", "") : "代码";
+
+    // 计算代码行数，如果超过一定行数或长度则默认折叠
+    const codeText = codeBlock.textContent || "";
+    const lineCount = (codeText.match(/\n/g) || []).length + 1;
+    const isLargeCodeBlock = lineCount > 15 || codeText.length > 2000;
+
+    // 创建details和summary元素
+    const details = document.createElement("details");
+    details.className = "code-block-collapsible";
+    // 根据大小决定是否默认展开
+    details.open = !isLargeCodeBlock; // 小代码块默认展开，大代码块默认折叠
+
+    const summary = document.createElement("summary");
+    summary.className = "code-block-summary";
+
+    // 创建语言标签
+    const langLabel = document.createElement("span");
+    langLabel.className = "code-block-language";
+    langLabel.textContent = language;
+
+    // 添加代码行数信息
+    const lineInfo = document.createElement("span");
+    lineInfo.className = "code-block-line-info";
+    lineInfo.textContent = `${lineCount}行`;
+
+    // 创建操作文本
+    const actionText = document.createElement("span");
+    actionText.className = "code-block-action-text";
+    actionText.textContent = "折叠";
+
+    // 创建折叠提示
+    const collapseHint = document.createElement("span");
+    collapseHint.className = "code-block-collapse-hint";
+    collapseHint.innerHTML =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/></svg>';
+
+    // 将左侧信息（语言和行数）添加到summary
+    const leftContainer = document.createElement("div");
+    leftContainer.className = "code-block-info";
+    leftContainer.appendChild(langLabel);
+    leftContainer.appendChild(lineInfo);
+    summary.appendChild(leftContainer);
+
+    // 将右侧操作（折叠文本和图标）添加到summary
+    const actionsContainer = document.createElement("div");
+    actionsContainer.className = "code-block-actions";
+    actionsContainer.appendChild(actionText);
+    actionsContainer.appendChild(collapseHint);
+    summary.appendChild(actionsContainer);
+
+    // 获取代码块的父元素(pre标签)
+    const preElement = codeBlock.parentElement;
+    const preParent = preElement.parentElement;
+
+    // 将pre放入details中
+    details.appendChild(summary);
+    preParent.replaceChild(details, preElement);
+    details.appendChild(preElement);
+
+    // 添加点击事件处理
+    summary.addEventListener("click", (e) => {
+      // 阻止事件冒泡，避免影响其他点击行为
+      e.stopPropagation();
+
+      // 更新操作文本
+      setTimeout(() => {
+        actionText.textContent = details.open ? "折叠" : "展开";
+      }, 0);
+    });
+
+    // 设置初始文本
+    actionText.textContent = details.open ? "折叠" : "展开";
+  });
+};
 </script>
 
 <template>
@@ -475,10 +574,12 @@ onMounted(() => {
 :deep(.vditor-reset pre) {
   margin: 1.25em 0;
   padding: 1.25em;
-  border-radius: 0.375rem;
-  background-color: v-bind('props.darkMode ? "#1e1e1e" : "#f8fafc"');
+  border-radius: 0; /* 移除圆角 */
+  background-color: transparent; /* 移除背景色，使用透明背景 */
   overflow-x: auto;
   line-height: 1.5;
+  border: none; /* 确保没有边框 */
+  box-shadow: none; /* 移除阴影 */
 }
 
 /* 列表样式 */
@@ -574,7 +675,11 @@ onMounted(() => {
   }
 
   :deep(.vditor-reset pre) {
-    padding: 0.75em;
+    padding: 0.5em;
+  }
+
+  :deep(.code-block-collapsible pre) {
+    padding: 0.5em !important; /* 在移动设备上使用更小的padding */
   }
 
   :deep(.vditor-reset table) {
@@ -660,5 +765,115 @@ onMounted(() => {
 :deep(.vditor-reset--light ul li input[type="checkbox"]) {
   background-color: #ffffff;
   border-color: #d1d5db;
+}
+
+/* 代码块折叠功能相关样式 */
+:deep(.code-block-collapsible) {
+  width: 100%;
+  margin: 1.25em 0;
+  border-radius: 0.375rem;
+  overflow: hidden;
+  border: 1px solid v-bind('props.darkMode ? "#30363d" : "#e5e7eb"');
+  background-color: v-bind('props.darkMode ? "#1a1a1a" : "#f8f9fa"');
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+:deep(.code-block-summary) {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid v-bind('props.darkMode ? "#30363d" : "#e5e7eb"');
+  background-color: v-bind('props.darkMode ? "#252526" : "#f1f3f5"');
+  color: v-bind('props.darkMode ? "#e2e8f0" : "#4b5563"');
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+:deep(.code-block-summary:hover) {
+  background-color: v-bind('props.darkMode ? "#2c2c2d" : "#e9ecef"');
+}
+
+:deep(.code-block-language) {
+  font-weight: 600;
+  color: v-bind('props.darkMode ? "#3b82f6" : "#2563eb"');
+}
+
+:deep(.code-block-info) {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+:deep(.code-block-line-info) {
+  font-size: 0.75rem;
+  color: v-bind('props.darkMode ? "#9ca3af" : "#6b7280"');
+  opacity: 0.8;
+}
+
+:deep(.code-block-actions) {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+:deep(.code-block-action-text) {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+:deep(.code-block-collapse-hint) {
+  display: flex;
+  align-items: center;
+  transition: transform 0.2s ease;
+}
+
+:deep(.code-block-collapsible[open] .code-block-collapse-hint) {
+  transform: rotate(180deg);
+}
+
+/* 强制调整代码块内部的样式 */
+:deep(.code-block-collapsible pre) {
+  margin: 0 !important; /* 移除margins，因为我们现在有外部容器 */
+  padding: 0.75em !important; /* 减小padding值，缩小内容与容器间距 */
+  border-radius: 0 !important; /* 移除圆角，让它与外部容器融合 */
+  border: none !important; /* 移除边框 */
+}
+
+/* 增强代码块内部滚动条样式 */
+:deep(.code-block-collapsible pre::-webkit-scrollbar) {
+  height: 8px;
+}
+
+:deep(.code-block-collapsible pre::-webkit-scrollbar-track) {
+  background: v-bind('props.darkMode ? "#1e1e1e" : "#f1f1f1"');
+}
+
+:deep(.code-block-collapsible pre::-webkit-scrollbar-thumb) {
+  background-color: v-bind('props.darkMode ? "#4b5563" : "#c1c9d6"');
+  border-radius: 4px;
+}
+
+:deep(.code-block-collapsible pre::-webkit-scrollbar-thumb:hover) {
+  background-color: v-bind('props.darkMode ? "#6b7280" : "#a1a9b6"');
+}
+
+/* 移动端适配 */
+@media (max-width: 640px) {
+  :deep(.code-block-summary) {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+  }
+
+  :deep(.code-block-action-text) {
+    font-size: 0.7rem;
+  }
+
+  :deep(.code-block-collapse-hint svg) {
+    width: 14px;
+    height: 14px;
+  }
 }
 </style>

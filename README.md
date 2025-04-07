@@ -368,7 +368,7 @@ cd CloudPaste/backend
    
    ![B21](./images/B2/B2-4.png) 
 
-关于 3 的配置由于面板无法配置，只能手动配置，需[下载 B2 CLI](https://www.backblaze.com/docs/cloud-storage-command-line-tools)对应工具。具体可以参考：“https://docs.cloudreve.org/use/policy/s3#backblaze-b2” 。
+关于 3 的配置由于面板无法配置，只能手动配置，需[下载 B2 CLI](https://www.backblaze.com/docs/cloud-storage-command-line-tools)对应工具。具体可以参考：“https://docs.cloudreve.org/use/policy/s3#backblaze-b2 ” 。
 
 下载后，在对应下载目录 cmd，在命令行输入以下命令：
 

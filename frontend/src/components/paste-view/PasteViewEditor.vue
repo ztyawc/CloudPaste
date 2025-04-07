@@ -63,6 +63,14 @@ const editForm = ref({
 // 密码可见性控制
 const showPassword = ref(false);
 
+// 复制为其他格式功能逻辑
+const copyFormatMenuVisible = ref(false);
+const copyFormatMenuPosition = ref({ x: 0, y: 0 });
+// 成功通知消息
+const notification = ref("");
+// 存储最后一次使用的按钮元素引用，用于重新定位菜单
+const lastCopyFormatsBtnElement = ref(null);
+
 // 切换密码可见性
 const togglePasswordVisibility = () => {
   showPassword.value = !showPassword.value;
@@ -147,6 +155,7 @@ const initEditor = () => {
         autoSpace: true, // 自动空格
         media: true, // 启用媒体链接解析
         listStyle: true, // 确保开启列表样式
+        task: true, // 启用任务列表交互
         paragraphBeginningSpace: true, // 段落开头空格支持
         fixTermTypo: true, // 术语修正
         // 图表渲染相关配置
@@ -335,6 +344,15 @@ const initEditor = () => {
       "undo",
       "redo",
       "|",
+      {
+        name: "copy-formats",
+        icon: '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"></path></svg>',
+        tip: "复制为其他格式",
+        click() {
+          showCopyFormatsMenu();
+        },
+      },
+      "|",
       "fullscreen",
       "outline", // 保留大纲按钮，用户可以手动开启
       "edit-mode",
@@ -451,6 +469,20 @@ defineExpose({
 // 组件挂载时初始化编辑器
 onMounted(() => {
   initEditor();
+
+  // 添加全局点击事件监听器
+  document.addEventListener("click", handleGlobalClick);
+
+  // 添加窗口大小调整事件监听器
+  window.addEventListener("resize", updateCopyFormatMenuPosition);
+
+  // 添加编辑器容器滚动事件监听器
+  setTimeout(() => {
+    const editorContainer = document.querySelector(".vditor-content");
+    if (editorContainer) {
+      editorContainer.addEventListener("scroll", updateCopyFormatMenuPosition);
+    }
+  }, 1000); // 给编辑器足够的初始化时间
 });
 
 // 组件卸载时销毁编辑器实例，避免内存泄漏
@@ -459,11 +491,195 @@ onBeforeUnmount(() => {
     vditorInstance.value.destroy();
     vditorInstance.value = null;
   }
+
+  // 移除全局点击事件监听器
+  document.removeEventListener("click", handleGlobalClick);
+
+  // 移除窗口大小调整事件监听器
+  window.removeEventListener("resize", updateCopyFormatMenuPosition);
+
+  // 移除编辑器容器滚动事件监听器
+  const editorContainer = document.querySelector(".vditor-content");
+  if (editorContainer) {
+    editorContainer.removeEventListener("scroll", updateCopyFormatMenuPosition);
+  }
 });
+
+// 显示复制格式菜单
+const showCopyFormatsMenu = () => {
+  if (!vditorInstance.value) return;
+
+  // 获取工具栏中复制格式按钮的位置
+  const copyFormatBtn = document.querySelector('.vditor-toolbar button[data-type="copy-formats"]');
+  if (!copyFormatBtn) return;
+
+  // 保存按钮元素引用
+  lastCopyFormatsBtnElement.value = copyFormatBtn;
+
+  const rect = copyFormatBtn.getBoundingClientRect();
+
+  // 设置菜单位置
+  copyFormatMenuPosition.value = {
+    x: rect.left,
+    y: rect.bottom + 5,
+  };
+
+  // 显示菜单
+  copyFormatMenuVisible.value = true;
+
+  // 添加点击事件监听器，点击外部区域关闭菜单
+  setTimeout(() => {
+    document.addEventListener("click", closeCopyFormatMenu);
+  }, 0);
+};
+
+// 更新复制格式菜单位置（当窗口调整大小时）
+const updateCopyFormatMenuPosition = () => {
+  if (!copyFormatMenuVisible.value) return;
+
+  // 如果按钮引用无效，尝试重新获取
+  if (!lastCopyFormatsBtnElement.value || !document.body.contains(lastCopyFormatsBtnElement.value)) {
+    const newBtn = document.querySelector('.vditor-toolbar button[data-type="copy-formats"]');
+    if (!newBtn) {
+      // 如果找不到按钮，隐藏菜单并返回
+      copyFormatMenuVisible.value = false;
+      return;
+    }
+    lastCopyFormatsBtnElement.value = newBtn;
+  }
+
+  const rect = lastCopyFormatsBtnElement.value.getBoundingClientRect();
+
+  // 更新菜单位置
+  copyFormatMenuPosition.value = {
+    x: rect.left,
+    y: rect.bottom + 5,
+  };
+};
+
+// 关闭复制格式菜单
+const closeCopyFormatMenu = (event) => {
+  // 如果没有传入event（如从复制函数中直接调用）
+  if (!event) {
+    copyFormatMenuVisible.value = false;
+    document.removeEventListener("click", closeCopyFormatMenu);
+    return;
+  }
+
+  const menu = document.getElementById("copyFormatMenu");
+  // 更新选择器以匹配自定义按钮
+  const copyFormatBtn = document.querySelector('.vditor-toolbar button[data-type="copy-formats"]')?.parentElement;
+
+  if (menu && !menu.contains(event.target) && (!copyFormatBtn || !copyFormatBtn.contains(event.target))) {
+    copyFormatMenuVisible.value = false;
+    document.removeEventListener("click", closeCopyFormatMenu);
+  }
+};
+
+// 复制为Markdown格式
+const copyAsMarkdown = () => {
+  if (!vditorInstance.value) return;
+  const mdContent = vditorInstance.value.getValue();
+  copyToClipboard(mdContent, "已复制为Markdown格式");
+  closeCopyFormatMenu();
+};
+
+// 复制为HTML格式
+const copyAsHTML = () => {
+  if (!vditorInstance.value) return;
+  const htmlContent = vditorInstance.value.getHTML();
+  copyToClipboard(htmlContent, "已复制为HTML格式");
+  closeCopyFormatMenu();
+};
+
+// 复制为纯文本格式
+const copyAsPlainText = () => {
+  if (!vditorInstance.value) return;
+  const htmlContent = vditorInstance.value.getHTML();
+  // 创建一个临时元素来去除HTML标签
+  const tempDiv = document.createElement("div");
+  tempDiv.innerHTML = htmlContent;
+  const plainText = tempDiv.textContent || tempDiv.innerText || "";
+  copyToClipboard(plainText, "已复制为纯文本格式");
+  closeCopyFormatMenu();
+};
+
+// 通用复制到剪贴板函数
+const copyToClipboard = (text, successMessage) => {
+  if (!text) {
+    emit("update:error", "没有可复制的内容");
+    return;
+  }
+
+  try {
+    navigator.clipboard
+        .writeText(text)
+        .then(() => {
+          // 使用notification显示成功消息，而非error
+          notification.value = successMessage;
+          setTimeout(() => {
+            notification.value = "";
+          }, 3000);
+        })
+        .catch((err) => {
+          console.error("复制失败:", err);
+          emit("update:error", "复制失败，请手动选择内容复制");
+          setTimeout(() => {
+            emit("update:error", "");
+          }, 3000);
+        });
+  } catch (e) {
+    console.error("复制API不可用:", e);
+    // 降级方案：创建临时文本区域
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+      document.execCommand("copy");
+      // 使用notification显示成功消息，而非error
+      notification.value = successMessage;
+      setTimeout(() => {
+        notification.value = "";
+      }, 3000);
+    } catch (err) {
+      console.error("复制失败:", err);
+      emit("update:error", "复制失败，请手动选择内容复制");
+      setTimeout(() => {
+        emit("update:error", "");
+      }, 3000);
+    }
+    document.body.removeChild(textarea);
+  }
+};
+
+const handleGlobalClick = (event) => {
+  // 如果点击事件不是来自复制格式菜单，并且复制格式菜单可见，则关闭菜单
+  const menu = document.getElementById("copyFormatMenu");
+  if (
+      menu &&
+      !menu.contains(event.target) &&
+      // 更新选择器以匹配自定义按钮
+      !event.target.closest('.vditor-toolbar button[data-type="copy-formats"]') &&
+      copyFormatMenuVisible.value
+  ) {
+    closeCopyFormatMenu();
+  }
+};
 </script>
 
 <template>
   <div class="paste-view-editor">
+    <!-- 成功通知提示 -->
+    <div v-if="notification" class="fixed bottom-4 right-4 z-50 px-4 py-2 rounded-lg bg-green-500 text-white shadow-lg notification-toast flex items-center">
+      <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+      </svg>
+      <span>{{ notification }}</span>
+    </div>
+
     <div class="editor-wrapper">
       <!-- 编辑器区域 - Vditor实例将挂载到这个div -->
       <div class="flex flex-col gap-4">
@@ -579,6 +795,48 @@ onBeforeUnmount(() => {
             {{ error }}
           </span>
         </div>
+      </div>
+    </div>
+
+    <!-- 复制格式菜单 -->
+    <div
+        v-if="copyFormatMenuVisible"
+        id="copyFormatMenu"
+        class="absolute bg-white dark:bg-gray-800 rounded-lg shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700"
+        :style="{ top: `${copyFormatMenuPosition.y}px`, left: `${copyFormatMenuPosition.x}px` }"
+    >
+      <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="copyAsMarkdown">
+        <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 3v4a1 1 0 0 0 1 1h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M9 9h1v6h1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M15 15h-2v-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>复制为Markdown</span>
+      </div>
+      <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="copyAsHTML">
+        <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path
+              d="M9 16H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4l-4 4z"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+          />
+          <path d="M8 9l3 3-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M16 15l-3-3 3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>复制为HTML</span>
+      </div>
+      <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="copyAsPlainText">
+        <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 3v4a1 1 0 0 0 1 1h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M9 9h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M9 13h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M9 17h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>复制为纯文本</span>
       </div>
     </div>
   </div>
@@ -860,4 +1118,44 @@ onBeforeUnmount(() => {
   tab-size: 4;
   -moz-tab-size: 4;
 }
+
+/* 复制格式菜单样式 */
+#copyFormatMenu {
+  min-width: 180px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+  transform-origin: top left;
+}
+
+#copyFormatMenu div {
+  transition: background-color 0.15s ease-in-out;
+}
+
+/* 通知提示动画 */
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  90% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+.notification-toast {
+  animation: fadeInOut 3s ease-in-out forwards;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* 添加多级列表样式支持 */
+/* 有序列表样式 */
 </style>
