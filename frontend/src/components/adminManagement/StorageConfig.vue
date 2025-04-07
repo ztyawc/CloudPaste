@@ -109,10 +109,28 @@ const testConnection = async (configId) => {
 
     // 提取测试结果数据
     const result = response.data?.result || {};
-    const isSuccess = response.data?.success === true;
 
-    // 生成详细的测试结果消息
-    let statusMessage = isSuccess ? "连接测试成功" : "连接测试失败";
+    // 重新计算整体成功状态，基于读权限和前端模拟测试结果
+    const basicConnectSuccess = result.read?.success === true; // 基础连接成功
+    const frontendUploadSuccess = result.frontendSim?.success === true; // 前端上传模拟成功
+
+    // 要标记为完全成功，需要基础连接和前端模拟测试都成功
+    const isFullSuccess = basicConnectSuccess && frontendUploadSuccess;
+    // 部分成功：基础连接成功但前端模拟失败
+    const isPartialSuccess = basicConnectSuccess && !frontendUploadSuccess;
+    // 整体成功状态：至少基础连接成功
+    const isSuccess = basicConnectSuccess;
+
+    // 生成更精确的测试结果消息
+    let statusMessage = "";
+    if (isFullSuccess) {
+      statusMessage = "连接测试完全成功";
+    } else if (isPartialSuccess) {
+      statusMessage = "连接测试部分成功";
+    } else {
+      statusMessage = "连接测试失败";
+    }
+
     let detailsMessage = "";
 
     // 读取权限状态
@@ -149,18 +167,34 @@ const testConnection = async (configId) => {
       detailsMessage += detailsMessage ? "\n" : "";
       if (result.cors.success) {
         detailsMessage += "✓ 跨域CORS配置正确";
-        detailsMessage += " (前端可直接上传)";
+        detailsMessage += " (跨域测试通过)";
       } else {
         detailsMessage += "✗ 跨域CORS配置有问题";
         if (result.cors.error) {
           detailsMessage += `: ${result.cors.error.split("\n")[0]}`;
         }
-        detailsMessage += " (前端无法直接上传)";
+        detailsMessage += " (跨域测试失败)";
+      }
+    }
+
+    // 前端模拟测试状态
+    if (result.frontendSim) {
+      detailsMessage += detailsMessage ? "\n" : "";
+      if (result.frontendSim.success) {
+        detailsMessage += "✓ 前端上传模拟成功";
+        detailsMessage += " (配置可用于实际上传)";
+      } else {
+        detailsMessage += "✗ 前端上传模拟失败";
+        if (result.frontendSim.failedAt) {
+          detailsMessage += ` (${result.frontendSim.failedAt}阶段)`;
+        }
+        detailsMessage += " (配置可能不适用于前端直传)";
       }
     }
 
     testResults.value[configId] = {
-      success: isSuccess,
+      success: isFullSuccess, // 只有当前端模拟测试也成功时才标记为完全成功
+      partialSuccess: isPartialSuccess, // 添加部分成功状态
       message: statusMessage,
       details: detailsMessage,
       result: result, // 保存完整结果以便需要时展示
@@ -169,6 +203,7 @@ const testConnection = async (configId) => {
   } catch (err) {
     testResults.value[configId] = {
       success: false,
+      partialSuccess: false,
       message: "测试连接失败",
       details: err.message || "无法连接到服务器",
       loading: false,
@@ -413,7 +448,10 @@ const handleSetDefaultConfig = async (configId) => {
                   <!-- 测试结果 -->
                   <div class="mt-2">
                     <div v-if="testResults[config.id] && !testResults[config.id].loading" class="mt-2">
-                      <div :class="testResults[config.id].success ? 'text-green-500' : 'text-red-500'" class="font-semibold">
+                      <div
+                          :class="[testResults[config.id].success ? 'text-green-500' : testResults[config.id].partialSuccess ? 'text-amber-500' : 'text-red-500']"
+                          class="font-semibold"
+                      >
                         {{ testResults[config.id].message }}
                       </div>
 
@@ -423,7 +461,7 @@ const handleSetDefaultConfig = async (configId) => {
                           <svg class="h-3.5 w-3.5 mr-1 mt-0.5 flex-shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          <div>注意：这只是基本连接测试，不代表前端直传可用</div>
+                          <div>注意：完全成功要求前端上传模拟也通过，这才能保证实际使用正常</div>
                         </div>
                       </div>
 
@@ -586,12 +624,43 @@ const handleSetDefaultConfig = async (configId) => {
 
         <div class="p-3 sm:p-4 max-h-[70vh] overflow-y-auto">
           <!-- 连接总结 -->
-          <div class="mb-3 p-2 sm:p-3 rounded" :class="selectedTestResult.success ? 'bg-green-50 dark:bg-green-900/30' : 'bg-red-50 dark:bg-red-900/30'">
-            <div class="font-semibold" :class="selectedTestResult.success ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'">
+          <div
+              class="mb-3 p-2 sm:p-3 rounded"
+              :class="[
+              selectedTestResult.success
+                ? 'bg-green-50 dark:bg-green-900/30'
+                : selectedTestResult.partialSuccess
+                ? 'bg-amber-50 dark:bg-amber-900/30'
+                : 'bg-red-50 dark:bg-red-900/30',
+            ]"
+          >
+            <div
+                class="font-semibold"
+                :class="[
+                selectedTestResult.success
+                  ? 'text-green-700 dark:text-green-400'
+                  : selectedTestResult.partialSuccess
+                  ? 'text-amber-700 dark:text-amber-400'
+                  : 'text-red-700 dark:text-red-400',
+              ]"
+            >
               {{ selectedTestResult.message }}
             </div>
             <div v-if="selectedTestResult.details" class="mt-1 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line">
               {{ selectedTestResult.details }}
+            </div>
+
+            <!-- 添加前端上传重要性提示 -->
+            <div v-if="selectedTestResult.partialSuccess" class="mt-2 text-xs border-t border-amber-200 dark:border-amber-800 pt-2 text-amber-800 dark:text-amber-300">
+              <svg class="h-3.5 w-3.5 mr-1 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <span>虽然基本连接成功，但前端上传模拟测试失败，实际使用可能会有问题</span>
             </div>
           </div>
 
@@ -766,8 +835,17 @@ const handleSetDefaultConfig = async (configId) => {
             <!-- 跨域CORS测试 -->
             <div class="mb-3">
               <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center">
-                跨域CORS测试
-                <span class="ml-1.5 px-1.5 py-0.5 text-xs rounded font-medium bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-300"> 关键测试 </span>
+                跨域CORS配置测试
+                <span
+                    class="ml-1.5 text-xs px-1.5 py-0.5 rounded"
+                    :class="
+                    selectedTestResult.result?.cors?.success
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400'
+                      : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-400'
+                  "
+                >
+                  基础测试
+                </span>
               </h4>
               <div class="bg-gray-50 dark:bg-gray-900/50 rounded p-2 sm:p-3 text-xs sm:text-sm">
                 <div class="flex items-center mb-1">
@@ -782,42 +860,32 @@ const handleSetDefaultConfig = async (configId) => {
                     </svg>
                   </span>
                   <span :class="selectedTestResult.result?.cors?.success ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'">
-                    {{ selectedTestResult.result?.cors?.success ? "跨域测试成功" : "跨域测试失败" }}
+                    {{ selectedTestResult.result?.cors?.success ? "CORS预检请求测试通过" : "CORS预检请求测试失败" }}
                   </span>
                 </div>
 
-                <!-- 添加测试说明 -->
-                <div v-if="selectedTestResult.result?.cors?.note" class="mb-2 pl-5 text-cyan-600 dark:text-cyan-400 text-xs italic">
-                  <svg class="h-3 w-3 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {{ selectedTestResult.result.cors.note }}
+                <div v-if="selectedTestResult.result?.cors?.detail" class="pl-5 text-gray-500 dark:text-gray-400 mb-1">
+                  {{ selectedTestResult.result.cors.detail }}
                 </div>
 
-                <div v-if="selectedTestResult.result?.cors?.success" class="pl-5">
-                  <div class="grid grid-cols-2 gap-1">
-                    <div class="text-gray-500 dark:text-gray-400">允许的来源:</div>
-                    <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.cors.allowOrigin }}</div>
+                <!-- CORS响应头信息 -->
+                <div v-if="selectedTestResult.result?.cors?.success" class="grid grid-cols-2 gap-1 pl-5 mt-1">
+                  <div class="text-gray-500 dark:text-gray-400">允许来源:</div>
+                  <div class="text-gray-900 dark:text-gray-200 truncate">{{ selectedTestResult.result.cors.allowOrigin || "未指定" }}</div>
 
-                    <div class="text-gray-500 dark:text-gray-400">允许的方法:</div>
-                    <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.cors.allowMethods }}</div>
+                  <div class="text-gray-500 dark:text-gray-400">允许方法:</div>
+                  <div class="text-gray-900 dark:text-gray-200 truncate">{{ selectedTestResult.result.cors.allowMethods || "未指定" }}</div>
 
-                    <div class="text-gray-500 dark:text-gray-400">允许的头部:</div>
-                    <div class="text-gray-900 dark:text-gray-200 truncate">
-                      {{ selectedTestResult.result.cors.allowHeaders || "未指定" }}
-                      <span
-                          v-if="selectedTestResult.result.cors.allowHeaders && selectedTestResult.result.cors.allowHeaders.length > 20"
-                          class="text-xs text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
-                          @click="$event.target.previousElementSibling.classList.toggle('truncate')"
-                      >
-                        (展开/收起)
-                      </span>
-                    </div>
-
-                    <div class="text-gray-500 dark:text-gray-400">实际上传测试:</div>
-                    <div :class="selectedTestResult.result.cors.upload ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'">
-                      {{ selectedTestResult.result.cors.upload ? "成功" : "失败" }}
-                    </div>
+                  <div class="text-gray-500 dark:text-gray-400">允许的头部:</div>
+                  <div class="text-gray-900 dark:text-gray-200 truncate">
+                    {{ selectedTestResult.result.cors.allowHeaders || "未指定" }}
+                    <span
+                        v-if="selectedTestResult.result.cors.allowHeaders && selectedTestResult.result.cors.allowHeaders.length > 20"
+                        class="text-xs text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
+                        @click="$event.currentTarget.previousElementSibling.classList.toggle('truncate')"
+                    >
+                      (展开/收起)
+                    </span>
                   </div>
                 </div>
 
@@ -829,7 +897,214 @@ const handleSetDefaultConfig = async (configId) => {
                 </div>
 
                 <div v-if="!selectedTestResult.result?.cors?.success && !selectedTestResult.result?.cors?.error" class="pl-5 text-amber-600 dark:text-amber-400">
-                  跨域配置未正确设置，前端无法直接上传文件到此存储服务。
+                  跨域配置未正确设置，预检请求未通过，前端无法直接上传文件到此存储服务。
+                </div>
+              </div>
+            </div>
+
+            <!-- 前端模拟测试 (新增部分) -->
+            <div class="mb-3">
+              <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center">
+                前端上传模拟测试
+                <span
+                    class="ml-1.5 text-xs px-1.5 py-0.5 rounded"
+                    :class="
+                    selectedTestResult.result?.frontendSim?.success
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400'
+                      : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400'
+                  "
+                >
+                  关键测试
+                </span>
+              </h4>
+              <div class="bg-gray-50 dark:bg-gray-900/50 rounded p-2 sm:p-3 text-xs sm:text-sm">
+                <div class="flex items-center mb-1">
+                  <span class="mr-1" :class="selectedTestResult.result?.frontendSim?.success ? 'text-green-500' : 'text-red-500'">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          :d="selectedTestResult.result?.frontendSim?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
+                      ></path>
+                    </svg>
+                  </span>
+                  <span :class="selectedTestResult.result?.frontendSim?.success ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'">
+                    {{ selectedTestResult.result?.frontendSim?.success ? "前端上传模拟测试成功" : "前端上传模拟测试失败" }}
+                  </span>
+                  <span class="ml-1.5 text-xs px-1.5 py-0.5 rounded font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"> 最关键测试 </span>
+                </div>
+
+                <!-- 添加测试说明 -->
+                <div v-if="selectedTestResult.result?.frontendSim?.note" class="mb-2 pl-5 text-amber-600 dark:text-amber-400 text-xs italic">
+                  <svg class="h-3 w-3 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {{ selectedTestResult.result.frontendSim.note }}
+                </div>
+
+                <!-- 显示步骤状态 -->
+                <div v-if="selectedTestResult.result?.frontendSim" class="pl-5 space-y-2 mt-2">
+                  <!-- 步骤1: 获取预签名URL -->
+                  <div class="bg-gray-100 dark:bg-gray-800 rounded p-1.5">
+                    <div class="flex items-center">
+                      <span
+                          class="w-4 h-4 flex-shrink-0 mr-1.5 rounded-full flex items-center justify-center text-white text-xs"
+                          :class="selectedTestResult.result.frontendSim.step1?.success ? 'bg-green-500' : 'bg-red-500'"
+                      >
+                        1
+                      </span>
+                      <span class="font-medium">{{ selectedTestResult.result.frontendSim.step1?.name || "获取预签名URL" }}</span>
+                      <span class="ml-auto" :class="selectedTestResult.result.frontendSim.step1?.success ? 'text-green-500' : 'text-red-500'">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              :d="selectedTestResult.result.frontendSim.step1?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
+                          ></path>
+                        </svg>
+                      </span>
+                    </div>
+                    <!-- 步骤1详情 -->
+                    <div v-if="selectedTestResult.result.frontendSim.step1?.success" class="mt-1 text-xs pl-6">
+                      <div v-if="selectedTestResult.result.frontendSim.step1?.url" class="text-gray-500 dark:text-gray-400">
+                        <span class="font-medium">URL:</span>
+                        <span class="url-display inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap">
+                          {{ selectedTestResult.result.frontendSim.step1.url }}
+                        </span>
+                        <button
+                            @click="$event.currentTarget.previousElementSibling.classList.toggle('whitespace-nowrap')"
+                            class="text-blue-500 hover:text-blue-600 text-xs ml-1 inline-flex items-center"
+                        >
+                          <svg class="h-3 w-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                          <span>展开/收起</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 步骤2: XHR文件上传 -->
+                  <div class="bg-gray-100 dark:bg-gray-800 rounded p-1.5">
+                    <div class="flex items-center">
+                      <span
+                          class="w-4 h-4 flex-shrink-0 mr-1.5 rounded-full flex items-center justify-center text-white text-xs"
+                          :class="
+                          selectedTestResult.result.frontendSim.step2?.success
+                            ? 'bg-green-500'
+                            : selectedTestResult.result.frontendSim.step1?.success
+                            ? 'bg-red-500'
+                            : 'bg-gray-400'
+                        "
+                      >
+                        2
+                      </span>
+                      <span class="font-medium">{{ selectedTestResult.result.frontendSim.step2?.name || "XHR文件上传" }}</span>
+                      <span
+                          v-if="selectedTestResult.result.frontendSim.step1?.success"
+                          class="ml-auto"
+                          :class="selectedTestResult.result.frontendSim.step2?.success ? 'text-green-500' : 'text-red-500'"
+                      >
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              :d="selectedTestResult.result.frontendSim.step2?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
+                          ></path>
+                        </svg>
+                      </span>
+                    </div>
+                    <!-- 步骤2详情 -->
+                    <div v-if="selectedTestResult.result.frontendSim.step2?.success" class="mt-1 text-xs pl-6 grid grid-cols-2 gap-1">
+                      <div class="text-gray-500 dark:text-gray-400">上传耗时:</div>
+                      <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.step2.duration }}ms</div>
+
+                      <div class="text-gray-500 dark:text-gray-400">上传速度:</div>
+                      <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.step2.speed }}</div>
+
+                      <div class="text-gray-500 dark:text-gray-400">ETag:</div>
+                      <div class="text-gray-900 dark:text-gray-200 truncate" :title="selectedTestResult.result.frontendSim.step2.etag">
+                        {{ selectedTestResult.result.frontendSim.step2.etag }}
+                      </div>
+                    </div>
+                    <!-- 上传错误 -->
+                    <div v-else-if="selectedTestResult.result.frontendSim.step1?.success" class="mt-1 text-xs pl-6 text-red-600 dark:text-red-400">
+                      <div v-if="selectedTestResult.result.frontendSim.step2?.status" class="font-medium">
+                        错误状态码: {{ selectedTestResult.result.frontendSim.step2.status }} {{ selectedTestResult.result.frontendSim.step2.statusText }}
+                      </div>
+                      <div v-if="selectedTestResult.result.frontendSim.step2?.errorText" class="mt-0.5 bg-red-50 dark:bg-red-900/20 p-1 rounded max-h-16 overflow-auto">
+                        {{ selectedTestResult.result.frontendSim.step2.errorText }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 步骤3: 元数据提交 -->
+                  <div class="bg-gray-100 dark:bg-gray-800 rounded p-1.5">
+                    <div class="flex items-center">
+                      <span
+                          class="w-4 h-4 flex-shrink-0 mr-1.5 rounded-full flex items-center justify-center text-white text-xs"
+                          :class="
+                          selectedTestResult.result.frontendSim.step3?.success
+                            ? 'bg-green-500'
+                            : selectedTestResult.result.frontendSim.step2?.success
+                            ? 'bg-red-500'
+                            : 'bg-gray-400'
+                        "
+                      >
+                        3
+                      </span>
+                      <span class="font-medium">{{ selectedTestResult.result.frontendSim.step3?.name || "元数据提交" }}</span>
+                      <span
+                          v-if="selectedTestResult.result.frontendSim.step2?.success"
+                          class="ml-auto"
+                          :class="selectedTestResult.result.frontendSim.step3?.success ? 'text-green-500' : 'text-red-500'"
+                      >
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              :d="selectedTestResult.result.frontendSim.step3?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
+                          ></path>
+                        </svg>
+                      </span>
+                    </div>
+                    <!-- 步骤3详情 -->
+                    <div
+                        v-if="selectedTestResult.result.frontendSim.step3?.success && selectedTestResult.result.frontendSim.step3?.note"
+                        class="mt-1 text-xs pl-6 text-gray-500 dark:text-gray-400"
+                    >
+                      {{ selectedTestResult.result.frontendSim.step3.note }}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 整体错误信息 -->
+                <div v-if="selectedTestResult.result?.frontendSim?.error" class="mt-2 text-red-600 dark:text-red-400">
+                  <div class="font-medium text-xs">错误信息:</div>
+                  <div class="bg-red-50 dark:bg-red-900/20 p-1 rounded mt-0.5 text-xs max-h-20 overflow-auto">
+                    {{ selectedTestResult.result.frontendSim.error }}
+                    <div v-if="selectedTestResult.result.frontendSim.failedAt" class="mt-1 font-medium">失败阶段: {{ selectedTestResult.result.frontendSim.failedAt }}</div>
+                  </div>
+                </div>
+
+                <!-- 清理信息 -->
+                <div v-if="selectedTestResult.result?.frontendSim?.success" class="mt-2 text-xs pl-5">
+                  <div class="flex items-center">
+                    <span class="text-gray-500 dark:text-gray-400 mr-1">测试文件清理:</span>
+                    <span :class="selectedTestResult.result.frontendSim.fileCleaned ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'">
+                      {{ selectedTestResult.result.frontendSim.fileCleaned ? "已清理" : "清理失败" }}
+                    </span>
+                  </div>
+                  <div
+                      v-if="!selectedTestResult.result.frontendSim.fileCleaned && selectedTestResult.result.frontendSim.cleanError"
+                      class="mt-0.5 text-yellow-600 dark:text-yellow-400"
+                  >
+                    清理错误: {{ selectedTestResult.result.frontendSim.cleanError }}
+                  </div>
                 </div>
               </div>
             </div>
@@ -877,6 +1152,31 @@ const handleSetDefaultConfig = async (configId) => {
   -ms-word-break: break-all; /* 兼容IE */
   word-break: break-word; /* 更现代的属性，尽量在合适的位置换行 */
   hyphens: auto; /* 在必要时添加连字符 */
+}
+
+/* URL显示增强 */
+.url-display {
+  max-width: calc(100% - 80px); /* 为展开/收起按钮留出空间 */
+  vertical-align: middle;
+  transition: all 0.2s ease;
+  padding: 0.125rem 0.25rem;
+  background-color: rgba(0, 0, 0, 0.03);
+  border-radius: 0.25rem;
+  border-left: 2px solid rgba(59, 130, 246, 0.5);
+  margin-left: 0.25rem;
+}
+
+.url-display:not(.whitespace-nowrap) {
+  white-space: normal;
+  word-break: break-all;
+  max-height: 5rem;
+  overflow-y: auto;
+}
+
+/* 暗黑模式下的URL样式 */
+:deep(.dark .url-display) {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-left-color: rgba(59, 130, 246, 0.7);
 }
 
 /* 连接信息项目样式 */
