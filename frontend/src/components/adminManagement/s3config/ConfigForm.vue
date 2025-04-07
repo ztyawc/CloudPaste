@@ -143,10 +143,9 @@ const updateEndpoint = () => {
       formData.value.endpoint_url = "https://s3.amazonaws.com";
       formData.value.path_style = false;
       break;
-    case "MinIO":
-      formData.value.endpoint_url = "http://localhost:9000";
-      formData.value.region = "";
-      formData.value.path_style = true;
+    default:
+      formData.value.endpoint_url = "https://your-s3-endpoint.com";
+      formData.value.path_style = false;
       break;
   }
 };

@@ -4,6 +4,7 @@
 
 import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { ConfiguredRetryStrategy } from "@smithy/util-retry";
 import { decryptValue } from "./crypto";
 import { S3ProviderTypes } from "../constants";
 
@@ -29,14 +30,42 @@ export async function createS3Client(config, encryptionSecret) {
     forcePathStyle: config.path_style === 1, // 使用路径样式访问
   };
 
-  // B2可能需要特殊配置
-  if (config.provider_type === S3ProviderTypes.B2) {
-    // 为B2使用v4签名版本
-    clientConfig.signatureVersion = "v4";
+  // 设置适当的超时时间
+  clientConfig.requestTimeout = 30000; // 全局默认超时30秒
 
-    // 设置自定义代理头
-    clientConfig.customUserAgent = "CloudPaste/1.0";
+  // 设置默认重试策略
+  let maxRetries = 3; // 默认最大重试次数
+  let retryBackoffStrategy = (attempt) => Math.min(Math.pow(2, attempt) * 500, 10000); // 默认指数退避策略
+
+  // 为不同服务商设置特定配置
+  switch (config.provider_type) {
+    case S3ProviderTypes.B2:
+      // Backblaze B2特定配置
+      clientConfig.signatureVersion = "v4";
+      clientConfig.customUserAgent = "CloudPaste/1.0";
+      clientConfig.requestTimeout = 60000;
+      maxRetries = 4;
+      break;
+
+    case S3ProviderTypes.R2:
+      // Cloudflare R2配置
+      clientConfig.requestTimeout = 30000;
+      break;
+
+    case S3ProviderTypes.OTHER:
+      clientConfig.signatureVersion = "v4";
+      break;
   }
+
+  // 应用重试策略
+  clientConfig.retryStrategy = new ConfiguredRetryStrategy(maxRetries, retryBackoffStrategy);
+
+  // 日志记录所选服务商和配置
+  console.log(
+      `正在创建S3客户端 (${config.provider_type}), endpoint: ${config.endpoint_url}, region: ${config.region || "auto"}, pathStyle: ${
+          config.path_style ? "是" : "否"
+      }, maxRetries: ${maxRetries}`
+  );
 
   // 返回创建的S3客户端
   return new S3Client(clientConfig);
@@ -102,13 +131,27 @@ export async function generatePresignedPutUrl(s3Config, storagePath, mimetype, e
       ContentType: mimetype,
     });
 
-    // 生成预签名URL
-    const url = await getSignedUrl(s3Client, command, { expiresIn });
+    // 针对不同服务商添加特定头部或参数
+    const commandOptions = { expiresIn };
+
+    // 某些服务商可能对预签名URL有不同处理
+    switch (s3Config.provider_type) {
+      case S3ProviderTypes.B2:
+        // B2特殊处理 - 某些情况可能需要添加特定头部
+        // 例如Content-SHA1处理，但一般在前端上传时添加
+        break;
+
+      case S3ProviderTypes.OTHER:
+        break;
+    }
+
+    // 生成预签名URL，应用服务商特定选项
+    const url = await getSignedUrl(s3Client, command, commandOptions);
 
     return url;
   } catch (error) {
     console.error("生成上传预签名URL出错:", error);
-    throw new Error("无法生成文件上传链接");
+    throw new Error("无法生成文件上传链接: " + (error.message || "未知错误"));
   }
 }
 
@@ -143,6 +186,13 @@ export async function generatePresignedUrl(s3Config, storagePath, encryptionSecr
       commandParams.ResponseContentDisposition = `attachment; filename="${encodeURIComponent(fileName)}"`;
     }
 
+    // 针对特定服务商添加额外参数
+    switch (s3Config.provider_type) {
+      case S3ProviderTypes.B2:
+        // B2可能需要特殊响应头
+        break;
+    }
+
     const command = new GetObjectCommand(commandParams);
 
     // 生成预签名URL
@@ -151,7 +201,7 @@ export async function generatePresignedUrl(s3Config, storagePath, encryptionSecr
     return url;
   } catch (error) {
     console.error("生成预签名URL出错:", error);
-    throw new Error("无法生成文件下载链接");
+    throw new Error("无法生成文件下载链接: " + (error.message || "未知错误"));
   }
 }
 

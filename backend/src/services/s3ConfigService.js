@@ -561,14 +561,25 @@ export async function testS3Connection(db, id, adminId, encryptionSecret, reques
     const presignedUrl = await getSignedUrl(s3Client, putCommand, { expiresIn: 300 });
 
     try {
+      // 根据不同服务商定制CORS测试请求头
+      const corsRequestHeaders = {
+        Origin: requestOrigin,
+        "Access-Control-Request-Method": "PUT",
+        "Access-Control-Request-Headers": "content-type,x-amz-content-sha256,x-amz-date,authorization",
+      };
+
+      // 为特定服务商添加额外的CORS请求头
+      switch (config.provider_type) {
+        case S3ProviderTypes.B2:
+          // B2可能需要额外的请求头
+          corsRequestHeaders["Access-Control-Request-Headers"] += ",x-bz-content-sha1,x-requested-with";
+          break;
+      }
+
       // 创建fetch请求测试服务端预检响应
       const optionsResponse = await fetch(presignedUrl, {
         method: "OPTIONS",
-        headers: {
-          Origin: requestOrigin,
-          "Access-Control-Request-Method": "PUT",
-          "Access-Control-Request-Headers": "content-type,x-amz-content-sha256,x-amz-date,authorization",
-        },
+        headers: corsRequestHeaders,
       });
 
       // 检查预检响应头
@@ -585,6 +596,17 @@ export async function testS3Connection(db, id, adminId, encryptionSecret, reques
 
         // 添加CORS配置说明
         testResult.cors.detail = "预检请求测试通过，S3服务的CORS基础配置正确。";
+
+        // 为特定服务商添加额外CORS说明
+        switch (config.provider_type) {
+          case S3ProviderTypes.B2:
+            testResult.cors.providerNote = "对于B2，除了基本CORS配置外，还需要确保已允许X-Bz-Content-Sha1和X-Requested-With头部。";
+            break;
+
+          case S3ProviderTypes.R2:
+            testResult.cors.providerNote = "Cloudflare R2的CORS配置相对简单，通常在控制台中设置后即可正常工作。";
+            break;
+        }
       } else {
         testResult.cors.success = false;
         testResult.cors.error = "预检请求未返回Access-Control-Allow-Origin头，可能没有正确配置CORS";
@@ -594,6 +616,24 @@ export async function testS3Connection(db, id, adminId, encryptionSecret, reques
         testResult.cors.optionsResponseHeaders = {};
         for (const [key, value] of optionsResponse.headers.entries()) {
           testResult.cors.optionsResponseHeaders[key] = value;
+        }
+
+        // 添加特定服务商的CORS配置指南
+        switch (config.provider_type) {
+          case S3ProviderTypes.B2:
+            testResult.cors.configGuide = "对于B2，需要在存储桶设置中配置CORS。确保允许来源包含您的域名或*，方法包含PUT，以及所有必要的头部。";
+            break;
+
+          case S3ProviderTypes.R2:
+            testResult.cors.configGuide = "在Cloudflare R2控制台的存储桶设置中启用CORS，添加适当的来源和方法。";
+            break;
+
+          case S3ProviderTypes.AWS:
+            testResult.cors.configGuide = "在AWS S3控制台的存储桶属性中配置CORS设置，添加适当的跨域规则。";
+            break;
+
+          default:
+            testResult.cors.configGuide = "请检查您的S3兼容服务提供商的CORS配置说明，确保允许来自您前端域名的请求。";
         }
       }
     } catch (corsError) {
@@ -623,31 +663,53 @@ export async function testS3Connection(db, id, adminId, encryptionSecret, reques
     // 步骤1: 模拟前端获取预签名URL的请求
     testResult.frontendSim.step1 = { name: "获取预签名URL", success: false };
 
-    // 创建PutObjectCommand
-    const putCommand = new PutObjectCommand({
+    // 为不同服务商准备合适的PutObject参数
+    const putCommandParams = {
       Bucket: config.bucket_name,
       Key: testKey,
       ContentType: testMimetype,
-    });
+    };
 
-    // 获取预签名URL
-    const uploadUrl = await getSignedUrl(s3Client, putCommand, { expiresIn: 300 });
+    // 特定服务商可能需要额外参数
+    switch (config.provider_type) {
+      case S3ProviderTypes.B2:
+        // B2可能需要特定元数据
+        putCommandParams.Metadata = {
+          "test-purpose": "cloudpaste-s3-test",
+        };
+        break;
+    }
+
+    // 创建PutObjectCommand
+    const putCommand = new PutObjectCommand(putCommandParams);
+
+    // 获取预签名URL - 不同服务商可能需要不同过期时间
+    let expiresIn = 300; // 默认5分钟
+
+    const uploadUrl = await getSignedUrl(s3Client, putCommand, { expiresIn });
     testResult.frontendSim.step1.success = true;
     testResult.frontendSim.step1.url = uploadUrl.substring(0, 80) + "..."; // 截断显示
 
     // 步骤2: 模拟前端直接上传
     testResult.frontendSim.step2 = { name: "XHR文件上传", success: false };
 
-    // 准备请求头，模拟前端XHR上传
+    // 准备请求头，模拟前端XHR上传 (针对不同服务商定制)
     const uploadHeaders = {
       "Content-Type": testMimetype,
       Origin: requestOrigin,
     };
 
-    // 添加特定存储提供商的请求头
-    if (config.provider_type === S3ProviderTypes.B2) {
-      uploadHeaders["X-Bz-Content-Sha1"] = "do_not_verify";
-      uploadHeaders["X-Requested-With"] = "XMLHttpRequest";
+    // 根据不同服务商添加特定的请求头
+    switch (config.provider_type) {
+      case S3ProviderTypes.B2:
+        // B2需要这些特殊头部
+        uploadHeaders["X-Bz-Content-Sha1"] = "do_not_verify";
+        uploadHeaders["X-Requested-With"] = "XMLHttpRequest";
+        break;
+
+      case S3ProviderTypes.R2:
+        // R2可能需要特定头部
+        break;
     }
 
     // 模拟XHR上传
@@ -668,6 +730,20 @@ export async function testS3Connection(db, id, adminId, encryptionSecret, reques
       testResult.frontendSim.step2.speed = `${uploadSpeed} B/s`;
       testResult.frontendSim.step2.etag = uploadResponse.headers.get("ETag");
 
+      // 不同服务商可能返回不同的头部信息
+      testResult.frontendSim.step2.providerHeaders = {};
+      switch (config.provider_type) {
+        case S3ProviderTypes.B2:
+          // 记录B2特有的响应头
+          testResult.frontendSim.step2.providerHeaders.uploadId = uploadResponse.headers.get("x-bz-file-id");
+          testResult.frontendSim.step2.providerHeaders.sha1 = uploadResponse.headers.get("x-bz-content-sha1");
+          break;
+
+        case S3ProviderTypes.R2:
+          // 记录R2特有的响应头
+          break;
+      }
+
       // 步骤3: 模拟前端上传后元数据提交 (模拟completeFileUpload流程)
       testResult.frontendSim.step3 = { name: "元数据提交", success: false };
 
@@ -675,6 +751,17 @@ export async function testS3Connection(db, id, adminId, encryptionSecret, reques
       // 但在测试中，我们只模拟这个过程并标记成功
       testResult.frontendSim.step3.success = true;
       testResult.frontendSim.step3.note = "实际前端会调用接口提交元数据";
+
+      // 针对不同服务商的兼容性提示
+      switch (config.provider_type) {
+        case S3ProviderTypes.B2:
+          testResult.frontendSim.step3.providerNote = "B2存储需要在前端上传时添加X-Bz-Content-Sha1头部，CloudPaste已处理此要求。";
+          break;
+
+        case S3ProviderTypes.R2:
+          testResult.frontendSim.step3.providerNote = "Cloudflare R2完全兼容标准S3上传流程，无需特殊处理。";
+          break;
+      }
 
       // 清理测试文件
       try {
@@ -700,6 +787,20 @@ export async function testS3Connection(db, id, adminId, encryptionSecret, reques
       } catch (e) {
         testResult.frontendSim.step2.errorText = "无法读取错误响应内容";
       }
+
+      // 添加服务商特定的错误解决提示
+      switch (config.provider_type) {
+        case S3ProviderTypes.B2:
+          testResult.frontendSim.step2.troubleshooting = "B2上传失败可能与Content-SHA1头部有关，确保已正确配置CORS并允许此头部。";
+          break;
+
+        case S3ProviderTypes.R2:
+          testResult.frontendSim.step2.troubleshooting = "R2上传失败通常与CORS配置或权限有关，请检查R2存储桶的CORS设置和访问策略。";
+          break;
+
+        default:
+          testResult.frontendSim.step2.troubleshooting = "上传失败通常与CORS配置、权限设置或预签名URL过期有关。请检查服务配置。";
+      }
     }
   } catch (error) {
     testResult.frontendSim.error = error.message;
@@ -710,6 +811,9 @@ export async function testS3Connection(db, id, adminId, encryptionSecret, reques
     } else {
       testResult.frontendSim.failedAt = "元数据提交";
     }
+
+    // 添加错误诊断指南
+    testResult.frontendSim.troubleshooting = "测试失败可能是由于网络连接问题、S3配置错误或凭证无效。请检查您的配置并重试。";
   }
 
   // 更新最后使用时间
