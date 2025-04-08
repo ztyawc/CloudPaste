@@ -23,7 +23,7 @@ export default {
   },
   markdown: {
     title: "Markdown 编辑器",
-    placeholder: "请输入Markdown内容...",
+    placeholder: "请输入Markdown内容...，对于代码：ctrl+shift+V粘贴原文，ctrl+V会被自动套上一层代码块",
     save: "保存",
     share: "分享",
     download: "下载",

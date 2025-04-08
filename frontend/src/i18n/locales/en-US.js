@@ -23,7 +23,7 @@ export default {
   },
   markdown: {
     title: "Markdown Editor",
-    placeholder: "Enter Markdown content...",
+    placeholder: "Please enter Markdown content... For code: use ctrl+shift+V to paste the original text, as ctrl+V will automatically wrap it in a code block.",
     save: "Save",
     share: "Share",
     download: "Download",

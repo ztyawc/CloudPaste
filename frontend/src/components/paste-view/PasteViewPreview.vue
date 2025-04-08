@@ -5,6 +5,7 @@ import { ref, onMounted, watch, nextTick } from "vue";
 import Vditor from "vditor";
 import "vditor/dist/index.css"; // 引入Vditor样式
 import { debugLog } from "./PasteViewUtils";
+import HtmlPreviewModal from "./preview/HtmlPreviewModal.vue"; // 引入HTML预览弹窗组件
 
 // 定义组件接收的属性
 const props = defineProps({
@@ -29,6 +30,13 @@ const props = defineProps({
     default: false,
   },
 });
+
+// HTML 预览相关的状态变量
+const showHtmlPreview = ref(false);
+const previewHtmlContent = ref("");
+// SVG 预览相关的状态变量
+const showSvgPreview = ref(false);
+const previewSvgContent = ref("");
 
 // 定义组件可触发的事件
 const emit = defineEmits(["rendered"]);
@@ -389,6 +397,47 @@ const setupCodeBlockCollapse = () => {
     // 将右侧操作（折叠文本和图标）添加到summary
     const actionsContainer = document.createElement("div");
     actionsContainer.className = "code-block-actions";
+
+    // 为 HTML 代码块添加预览按钮
+    if (language.toLowerCase() === "html") {
+      const previewButton = document.createElement("button");
+      previewButton.className = "code-block-preview-button";
+      previewButton.innerHTML =
+          '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg>';
+      previewButton.title = "预览 HTML";
+
+      // 添加点击事件
+      previewButton.addEventListener("click", (e) => {
+        e.stopPropagation(); // 阻止事件冒泡
+
+        // 获取 HTML 代码内容并设置到预览变量
+        previewHtmlContent.value = codeText;
+        showHtmlPreview.value = true;
+      });
+
+      actionsContainer.appendChild(previewButton);
+    }
+
+    // 为 SVG 代码块添加预览按钮
+    if (language.toLowerCase() === "svg") {
+      const previewButton = document.createElement("button");
+      previewButton.className = "code-block-preview-button";
+      previewButton.innerHTML =
+          '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg>';
+      previewButton.title = "预览 SVG";
+
+      // 添加点击事件
+      previewButton.addEventListener("click", (e) => {
+        e.stopPropagation(); // 阻止事件冒泡
+
+        // 获取 SVG 代码内容并设置到预览变量
+        previewSvgContent.value = codeText;
+        showSvgPreview.value = true;
+      });
+
+      actionsContainer.appendChild(previewButton);
+    }
+
     actionsContainer.appendChild(actionText);
     actionsContainer.appendChild(collapseHint);
     summary.appendChild(actionsContainer);
@@ -416,6 +465,85 @@ const setupCodeBlockCollapse = () => {
     // 设置初始文本
     actionText.textContent = details.open ? "折叠" : "展开";
   });
+};
+
+// 在外部浏览器中打开 HTML
+const openHtmlInExternalBrowser = (htmlContent) => {
+  // 创建包含完整 HTML 结构的文档
+  const htmlTemplate = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>HTML 预览</title>
+        <style>
+          body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 0;
+          }
+        </style>
+      </head>
+      <body>
+        ${htmlContent}
+      </body>
+    </html>
+  `;
+
+  // 使用 Blob 创建 URL
+  const blob = new Blob([htmlTemplate], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+
+  // 在新窗口中打开
+  window.open(url, "_blank");
+
+  // 清理 Blob URL
+  setTimeout(() => URL.revokeObjectURL(url), 100);
+};
+
+// 在外部浏览器中打开 SVG
+const openSvgInExternalBrowser = (svgContent) => {
+  // 创建包含完整 SVG 结构的文档
+  const svgTemplate = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>SVG 预览</title>
+        <style>
+          body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: ${props.darkMode ? "#1a1a1a" : "#ffffff"};
+          }
+          svg {
+            max-width: 100%;
+            max-height: 100vh;
+          }
+        </style>
+      </head>
+      <body>
+        ${svgContent}
+      </body>
+    </html>
+  `;
+
+  // 使用 Blob 创建 URL
+  const blob = new Blob([svgTemplate], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+
+  // 在新窗口中打开
+  window.open(url, "_blank");
+
+  // 清理 Blob URL
+  setTimeout(() => URL.revokeObjectURL(url), 100);
 };
 </script>
 
@@ -447,6 +575,26 @@ const setupCodeBlockCollapse = () => {
 
     <!-- 无内容提示 -->
     <p v-if="!props.content" :class="props.darkMode ? 'text-gray-400' : 'text-gray-500'">无内容</p>
+
+    <!-- HTML 预览弹窗组件 -->
+    <HtmlPreviewModal
+        :show="showHtmlPreview"
+        :html-content="previewHtmlContent"
+        :dark-mode="props.darkMode"
+        :content-type="'html'"
+        @close="showHtmlPreview = false"
+        @open-external="openHtmlInExternalBrowser"
+    />
+
+    <!-- SVG 预览弹窗组件 -->
+    <HtmlPreviewModal
+        :show="showSvgPreview"
+        :html-content="previewSvgContent"
+        :dark-mode="props.darkMode"
+        :content-type="'svg'"
+        @close="showSvgPreview = false"
+        @open-external="openSvgInExternalBrowser"
+    />
   </div>
 </template>
 
@@ -665,6 +813,30 @@ const setupCodeBlockCollapse = () => {
 /* 图表内的SVG元素样式固定 */
 :deep(.diagram-fixed-theme svg) {
   background-color: white !important;
+}
+
+/* HTML 预览按钮样式 */
+:deep(.code-block-preview-button) {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  padding: 4px;
+  margin-right: 8px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+:deep(.code-block-preview-button:hover) {
+  background-color: v-bind('props.darkMode ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)"');
+}
+
+:deep(.code-block-preview-button svg) {
+  width: 16px;
+  height: 16px;
 }
 
 /* 针对手机屏幕的响应式调整 */
