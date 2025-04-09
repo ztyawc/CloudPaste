@@ -168,6 +168,14 @@ export default {
     cannotGetProxyLink: "无法获取文件代理链接",
     copyPermanentLinkFailed: "复制永久下载链接失败",
     getPasswordFromSessionError: "从会话存储获取密码出错",
+    // 多文件上传相关
+    multipleFilesSupported: "支持多文件上传",
+    selectedFiles: "已选择 {count} 个文件",
+    clearAll: "清除全部",
+    uploadMultiple: "上传 {count} 个文件",
+    allUploadsFailed: "所有文件均上传失败",
+    partialUploadSuccess: "部分上传成功：{success}/{total} 个文件上传成功",
+    allUploadsSuccessful: "全部 {count} 个文件上传成功！",
   },
   paste: {
     view: "文本分享",

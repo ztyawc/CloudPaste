@@ -169,6 +169,14 @@ export default {
     cannotGetProxyLink: "Cannot get file proxy link",
     copyPermanentLinkFailed: "Failed to copy permanent download link",
     getPasswordFromSessionError: "Error getting password from session storage",
+    // Multiple file upload related
+    multipleFilesSupported: "Multiple files supported",
+    selectedFiles: "Selected {count} files",
+    clearAll: "Clear All",
+    uploadMultiple: "Upload {count} Files",
+    allUploadsFailed: "All file uploads failed",
+    partialUploadSuccess: "Partial upload success: {success}/{total} files uploaded",
+    allUploadsSuccessful: "All {count} files uploaded successfully!",
   },
   paste: {
     view: "Text Share",
