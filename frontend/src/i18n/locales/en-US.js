@@ -112,6 +112,7 @@ export default {
     negativeMaxViews: "Access times cannot be negative",
     uploadSuccessful: "File uploaded successfully!",
     insufficientStorage: "Insufficient storage space",
+    insufficientStorageDetailed: "Insufficient storage space. File size ({fileSize}) exceeds remaining space ({remainingSpace}). Storage bucket capacity limit is {totalCapacity}.",
     fileSize: "File Size",
     clearSelected: "Clear Selected File",
     uploadSpeed: "Upload Speed",

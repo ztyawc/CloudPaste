@@ -904,11 +904,22 @@ const submitUpload = async () => {
           errorMessage.includes("链接后缀已被占用") ||
           errorMessage.includes("已存在");
 
+      // 检查是否是存储空间不足错误
+      const isInsufficientStorage =
+          errorMessage.includes("存储空间不足") ||
+          errorMessage.includes("insufficient storage") ||
+          errorMessage.includes("超过剩余空间") ||
+          errorMessage.includes("exceeds") ||
+          (errorMessage.includes("storage") && (errorMessage.includes("limit") || errorMessage.includes("full") || errorMessage.includes("quota")));
+
       // 更新文件状态为错误
       fileItem.status = "error";
       // 如果是链接后缀冲突，提供更具体的错误消息
       if (isSlugConflict) {
         fileItem.message = t("file.slugConflict");
+      } else if (isInsufficientStorage) {
+        // 处理存储空间不足的错误消息
+        fileItem.message = processInsufficientStorageError(errorMessage);
       } else {
         fileItem.message = errorMessage;
       }
@@ -917,6 +928,7 @@ const submitUpload = async () => {
         fileName: file.name,
         error: error,
         isSlugConflict: isSlugConflict,
+        isInsufficientStorage: isInsufficientStorage,
       });
     }
   }
@@ -929,6 +941,10 @@ const submitUpload = async () => {
     const allSlugConflicts = errors.every((err) => err.isSlugConflict);
     // 检查是否有链接后缀冲突
     const hasSlugConflicts = errors.some((err) => err.isSlugConflict);
+    // 检查是否所有错误都是存储空间不足
+    const allInsufficientStorage = errors.every((err) => err.isInsufficientStorage);
+    // 获取第一个存储空间不足错误（如果有的话）
+    const firstStorageError = errors.find((err) => err.isInsufficientStorage);
 
     // 有错误发生
     if (errors.length === selectedFiles.value.length) {
@@ -940,6 +956,13 @@ const submitUpload = async () => {
           content: t("file.allSlugConflicts"),
         };
         emit("upload-error", new Error(t("file.allSlugConflicts")));
+      } else if (allInsufficientStorage && firstStorageError) {
+        // 如果所有失败都是因为存储空间不足，显示第一个错误的具体信息
+        message.value = {
+          type: "error",
+          content: processInsufficientStorageError(firstStorageError.error.message),
+        };
+        emit("upload-error", new Error(processInsufficientStorageError(firstStorageError.error.message)));
       } else {
         message.value = {
           type: "error",
@@ -1013,6 +1036,43 @@ const formatSpeed = (bytesPerSecond) => {
   } else {
     return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`;
   }
+};
+
+// 处理存储空间不足的错误消息
+const processInsufficientStorageError = (errorMessage) => {
+  // 检查是否是存储空间不足的错误
+  const isInsufficientStorage =
+      errorMessage.includes("存储空间不足") || errorMessage.includes("insufficient storage") || errorMessage.includes("超过剩余空间") || errorMessage.includes("exceeds");
+
+  if (!isInsufficientStorage) {
+    return errorMessage;
+  }
+
+  try {
+    // 使用正则表达式提取文件大小、剩余空间和总容量限制
+    // 匹配中文和英文格式的错误消息
+    const fileSizeMatch = errorMessage.match(/文件大小\((.*?)\)|file size\((.*?)\)/i);
+    const remainingSpaceMatch = errorMessage.match(/剩余空间\((.*?)\)|remaining space\((.*?)\)/i);
+    const totalCapacityMatch = errorMessage.match(/总容量限制为(.*?)。|capacity limit is(.*?)\./i);
+
+    const fileSize = fileSizeMatch ? fileSizeMatch[1] || fileSizeMatch[2] : "";
+    const remainingSpace = remainingSpaceMatch ? remainingSpaceMatch[1] || remainingSpaceMatch[2] : "";
+    const totalCapacity = totalCapacityMatch ? totalCapacityMatch[1] || totalCapacityMatch[2] : "";
+
+    if (fileSize && remainingSpace && totalCapacity) {
+      // 使用国际化文本构建错误消息
+      return t("file.insufficientStorageDetailed", {
+        fileSize: fileSize,
+        remainingSpace: remainingSpace,
+        totalCapacity: totalCapacity,
+      });
+    }
+  } catch (e) {
+    console.error("Error processing insufficient storage message:", e);
+  }
+
+  // 如果提取失败，返回原始错误消息
+  return errorMessage;
 };
 
 // 重试上传单个文件
@@ -1115,21 +1175,26 @@ const retryUpload = async (index) => {
         errorMessage.includes("链接后缀已被占用") ||
         errorMessage.includes("已存在");
 
+    // 检查是否是存储空间不足错误
+    const isInsufficientStorage =
+        errorMessage.includes("存储空间不足") ||
+        errorMessage.includes("insufficient storage") ||
+        errorMessage.includes("超过剩余空间") ||
+        errorMessage.includes("exceeds") ||
+        (errorMessage.includes("storage") && (errorMessage.includes("limit") || errorMessage.includes("full") || errorMessage.includes("quota")));
+
     // 更新文件状态为错误
     fileItem.status = "error";
 
     // 设置具体的错误消息
     if (isSlugConflict) {
       fileItem.message = t("file.slugConflict");
+    } else if (isInsufficientStorage) {
+      // 处理存储空间不足的错误消息
+      fileItem.message = processInsufficientStorageError(errorMessage);
     } else {
       fileItem.message = errorMessage;
     }
-
-    // 显示错误消息
-    message.value = {
-      type: "error",
-      content: fileItem.message,
-    };
 
     // 触发错误事件
     emit("upload-error", error);

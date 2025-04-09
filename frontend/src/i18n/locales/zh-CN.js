@@ -112,6 +112,7 @@ export default {
     negativeMaxViews: "可访问次数不能为负数",
     uploadSuccessful: "文件上传成功！",
     insufficientStorage: "存储空间不足",
+    insufficientStorageDetailed: "存储空间不足。文件大小({fileSize})超过剩余空间({remainingSpace})。存储桶总容量限制为{totalCapacity}。",
     fileSize: "文件大小",
     clearSelected: "清除已选文件",
     uploadSpeed: "上传速度",
