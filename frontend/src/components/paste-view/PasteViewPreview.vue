@@ -115,7 +115,7 @@ const renderContentInternal = (content) => {
           theme: {
             current: props.darkMode ? "dark" : "light", // 根据darkMode设置主题
           },
-          cdn: "https://cdn.jsdelivr.net/npm/vditor@3.10.9", // 添加CDN配置，确保资源正确加载
+          cdn: "https://cdn.jsdelivr.net/npm/vditor@3.11.0", // 添加CDN配置，确保资源正确加载
           hljs: {
             lineNumber: true, // 代码块显示行号
             style: props.darkMode ? "vs2015" : "github", // 代码高亮样式

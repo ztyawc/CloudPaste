@@ -413,7 +413,7 @@ const initEditor = () => {
     theme: theme,
     // JS 文件使用 CDN，CSS 文件使用本地
     // 如后续需要升级Vditor版本，需要同时更新预览页中的CDN版本号
-    cdn: "https://cdn.jsdelivr.net/npm/vditor@3.10.9",
+    cdn: "https://cdn.jsdelivr.net/npm/vditor@3.11.0",
     resize: {
       enable: true,
       position: "bottom", // 只允许底部拖动
