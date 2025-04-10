@@ -179,7 +179,7 @@ userPasteRoutes.post("/api/paste/:slug", async (c) => {
 });
 
 // 直接访问raw内容的路由
-userPasteRoutes.get("/raw/:slug", async (c) => {
+userPasteRoutes.get("/api/raw/:slug", async (c) => {
   const db = c.env.DB;
   const slug = c.req.param("slug");
   const password = c.req.query("password"); // 从查询参数中获取密码

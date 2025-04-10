@@ -1,11 +1,7 @@
-/**
- * 解耦合旧版 worker.js文件的新workers.js，目前启用，wrangler.toml改用此文件作为入口
- */
-
-import app from "./src/index";
-import { ApiStatus } from "./src/constants";
-import { handleFileDownload } from "./src/routes/fileViewRoutes";
-import { checkAndInitDatabase } from "./src/utils/database";
+import app from "./src/index.js";
+import { ApiStatus } from "./src/constants/index.js";
+import { handleFileDownload } from "./src/routes/fileViewRoutes.js";
+import { checkAndInitDatabase } from "./src/utils/database.js";
 
 // 记录数据库是否已初始化的内存标识
 let isDbInitialized = false;
@@ -48,6 +44,12 @@ export default {
         return await handleFileDownload(slug, env, request, false); // 预览
       }
 
+      // 处理原始文本内容请求 /api/raw/:slug
+      if (pathParts.length >= 4 && pathParts[1] === "api" && pathParts[2] === "raw") {
+        // 将请求转发到API应用，它会路由到userPasteRoutes中的/api/raw/:slug处理器
+        return app.fetch(request, bindings, ctx);
+      }
+
       // 处理其他API请求
       return app.fetch(request, bindings, ctx);
     } catch (error) {
@@ -55,17 +57,17 @@ export default {
 
       // 兼容前端期望的错误格式
       return new Response(
-        JSON.stringify({
-          code: ApiStatus.INTERNAL_ERROR,
-          message: "服务器内部错误",
-          error: error.message,
-          success: false,
-          data: null,
-        }),
-        {
-          status: ApiStatus.INTERNAL_ERROR,
-          headers: { "Content-Type": "application/json" },
-        }
+          JSON.stringify({
+            code: ApiStatus.INTERNAL_ERROR,
+            message: "服务器内部错误",
+            error: error.message,
+            success: false,
+            data: null,
+          }),
+          {
+            status: ApiStatus.INTERNAL_ERROR,
+            headers: { "Content-Type": "application/json" },
+          }
       );
     }
   },
