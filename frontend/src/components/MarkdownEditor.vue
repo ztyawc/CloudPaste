@@ -248,6 +248,14 @@
         </svg>
         <span>导出为Word文档</span>
       </div>
+      <div class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center" @click="exportAsPng">
+        <svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M17 21v-8h-8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M7 3v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>导出为PNG图片</span>
+      </div>
     </div>
   </div>
 </template>
@@ -267,6 +275,7 @@ import { ApiStatus } from "../api/ApiStatus";
 import markdownToWord from "../utils/markdownToWord";
 // 导入FileSaver用于下载文件
 import { saveAs } from "file-saver";
+import htmlToImage from "@/utils/htmlToImage";
 
 // 使用i18n
 const { t } = useI18n();
@@ -1287,14 +1296,14 @@ const exportWordDocument = async () => {
   if (!editor) return;
 
   // 显示状态消息
-  savingStatus.value = "正在生成Word文档...";
+  savingStatus.value = t("common.generatingWord") || "正在生成Word文档...";
 
   try {
     // 获取Markdown内容
     const markdownContent = editor.getValue();
 
     if (!markdownContent) {
-      savingStatus.value = "没有内容可导出";
+      savingStatus.value = t("common.noContent") || "没有内容可导出";
       setTimeout(() => {
         savingStatus.value = "";
       }, 3000);
@@ -1316,13 +1325,13 @@ const exportWordDocument = async () => {
     saveAs(blob, fileName);
 
     // 显示成功消息
-    savingStatus.value = "Word文档已生成并下载";
+    savingStatus.value = t("common.wordSaved") || "Word文档已生成并下载";
     setTimeout(() => {
       savingStatus.value = "";
     }, 3000);
   } catch (error) {
     console.error("导出Word文档时出错:", error);
-    savingStatus.value = "导出失败，请稍后重试";
+    savingStatus.value = t("common.wordExportFailed") || "导出失败，请稍后重试";
     setTimeout(() => {
       savingStatus.value = "";
     }, 3000);
@@ -1394,6 +1403,80 @@ const handleGlobalClick = (event) => {
       copyFormatMenuVisible.value
   ) {
     closeCopyFormatMenu();
+  }
+};
+
+const exportAsPng = async () => {
+  try {
+    closeCopyFormatMenu();
+
+    // 显示加载中提示
+    savingStatus.value = t("common.generatingImage") || "正在生成图片...";
+
+    // 获取编辑器内容区域的DOM元素
+    const editorElement = document.querySelector(".vditor-preview");
+
+    if (!editorElement) {
+      savingStatus.value = t("common.editorNotReady") || "编辑器未准备好，请稍后再试";
+      setTimeout(() => {
+        savingStatus.value = "";
+      }, 3000);
+      return;
+    }
+
+    // 获取文档标题
+    const title = props.initialContent?.startsWith("#") ? props.initialContent.split("\n")[0].replace(/^#+ /, "") : "markdown";
+
+    // 生成文件名
+    const now = new Date();
+    const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(
+        2,
+        "0"
+    )}-${String(now.getMinutes()).padStart(2, "0")}-${String(now.getSeconds()).padStart(2, "0")}`;
+    const filename = `${title.replace(/[^\w\u4e00-\u9fa5]/g, "-")}-${timestamp}.png`;
+
+    // 创建一个过滤函数，避免尝试访问外部样式表
+    const filter = (node) => {
+      // 排除所有从CDN加载的样式表和可能导致CORS问题的元素
+      if (node.tagName === "LINK" && node.getAttribute("rel") === "stylesheet") {
+        const href = node.getAttribute("href");
+        if (href && (href.startsWith("http") || href.startsWith("//"))) {
+          return false;
+        }
+      }
+
+      // 排除外部图片链接，避免CORS问题
+      if (node.tagName === "IMG") {
+        const src = node.getAttribute("src");
+        if (src && (src.startsWith("http") || src.startsWith("//"))) {
+          console.log("跳过外部图片:", src);
+          return false;
+        }
+      }
+
+      return true;
+    };
+
+    // 调用工具类方法导出PNG并下载
+    await htmlToImage.exportToPngAndDownload(editorElement, {
+      fileName: filename,
+      backgroundColor: props.darkMode ? "#1e1e1e" : "#ffffff",
+      filter: filter,
+      fontEmbedCss: false, // 禁用字体嵌入以避免CORS问题
+      pixelRatio: 2,
+    });
+
+    // 显示成功提示
+    savingStatus.value = t("common.imageSaved") || "图片已保存";
+    setTimeout(() => {
+      savingStatus.value = "";
+    }, 3000);
+  } catch (error) {
+    console.error("导出PNG图片失败:", error);
+    savingStatus.value = t("common.imageSaveFailed") || "导出图片失败";
+    setTimeout(() => {
+      savingStatus.value = "";
+    }, 3000);
   }
 };
 </script>
