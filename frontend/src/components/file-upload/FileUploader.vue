@@ -138,6 +138,20 @@
               ></div>
             </div>
           </div>
+          <!-- 取消上传按钮，仅在上传状态显示 -->
+          <button
+              v-if="fileItems[index]?.status === 'uploading'"
+              type="button"
+              @click="cancelSingleUpload(index)"
+              class="p-1 rounded-full hover:bg-opacity-20 transition-colors mr-1"
+              :class="darkMode ? 'hover:bg-red-900/60 text-gray-400 hover:text-red-300' : 'hover:bg-red-100 text-gray-500 hover:text-red-500'"
+              :title="t('file.cancelUpload')"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19V5M5 12l7-7 7 7" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4L20 20" stroke="red" />
+            </svg>
+          </button>
           <!-- 重试按钮，仅在错误状态显示 -->
           <button
               v-if="fileItems[index]?.status === 'error'"
@@ -684,30 +698,35 @@ const formatFileSize = (bytes) => {
 // 取消上传
 const cancelUpload = () => {
   if (isUploading.value) {
-    // 如果有正在上传的文件
-    if (currentUploadIndex.value >= 0 && currentUploadIndex.value < fileItems.value.length) {
-      const fileItem = fileItems.value[currentUploadIndex.value];
+    // 取消所有待上传和正在上传的文件
+    for (let i = 0; i < fileItems.value.length; i++) {
+      const fileItem = fileItems.value[i];
 
-      // 如果有活动的XHR请求，取消它
-      if (fileItem.xhr) {
-        fileItem.xhr.abort();
+      // 只处理"正在上传"或"等待上传"的文件
+      if (fileItem.status === "uploading" || fileItem.status === "pending") {
+        // 如果有活动的XHR请求，取消它
+        if (fileItem.xhr) {
+          fileItem.xhr.abort();
+        }
+
+        // 更新文件状态为取消
         fileItem.status = "error";
         fileItem.message = t("file.cancelMessage");
-      }
 
-      // 如果已获取了文件ID，则删除相应的文件记录
-      if (fileItem.fileId) {
-        // 根据用户身份选择合适的删除API
-        const deleteApi = props.isAdmin ? deleteFile : deleteUserFile;
+        // 如果已获取了文件ID，则删除相应的文件记录
+        if (fileItem.fileId) {
+          // 根据用户身份选择合适的删除API
+          const deleteApi = props.isAdmin ? deleteFile : deleteUserFile;
 
-        // 删除文件记录
-        deleteApi(fileItem.fileId)
-            .then(() => {
-              console.log("已成功删除被取消的文件记录");
-            })
-            .catch((error) => {
-              console.error("删除被取消的文件记录失败:", error);
-            });
+          // 删除文件记录
+          deleteApi(fileItem.fileId)
+              .then(() => {
+                console.log("已成功删除被取消的文件记录", fileItem.fileId);
+              })
+              .catch((error) => {
+                console.error("删除被取消的文件记录失败:", error);
+              });
+        }
       }
     }
 
@@ -820,6 +839,12 @@ const submitUpload = async () => {
 
   // 顺序上传每个文件
   for (let i = 0; i < selectedFiles.value.length; i++) {
+    // 检查上传是否被取消，如果已取消则立即退出循环
+    if (!isUploading.value) {
+      console.log("上传已被取消，停止继续上传");
+      break;
+    }
+
     // 跳过已上传成功的文件
     if (fileItems.value[i].status === "success") {
       continue;
@@ -894,6 +919,12 @@ const submitUpload = async () => {
       fileItem.progress = 100;
 
       uploadResults.push(response);
+
+      // 再次检查上传是否被取消，如果已取消则立即退出循环
+      if (!isUploading.value) {
+        console.log("上传过程中被取消，停止继续上传其他文件");
+        break;
+      }
     } catch (error) {
       console.error(`上传文件 ${file.name} 失败:`, error);
       // 检查是否是链接后缀冲突错误
@@ -930,6 +961,12 @@ const submitUpload = async () => {
         isSlugConflict: isSlugConflict,
         isInsufficientStorage: isInsufficientStorage,
       });
+
+      // 文件上传失败后也检查上传是否被取消
+      if (!isUploading.value) {
+        console.log("上传过程中被取消，停止继续上传其他文件");
+        break;
+      }
     }
   }
 
@@ -1199,9 +1236,68 @@ const retryUpload = async (index) => {
     // 触发错误事件
     emit("upload-error", error);
   } finally {
+    // 重试逻辑更简单，总是设置isUploading.value为false
+    // 因为retryUpload通常是单独操作，而不是批量上传的一部分
     isUploading.value = false;
     currentUploadIndex.value = -1;
   }
+};
+
+// 取消单个文件上传
+const cancelSingleUpload = (index) => {
+  if (index < 0 || index >= fileItems.value.length) return;
+
+  const fileItem = fileItems.value[index];
+
+  // 只处理"正在上传"或"等待上传"的文件
+  if (fileItem.status !== "uploading" && fileItem.status !== "pending") return;
+
+  // 如果有活动的XHR请求，取消它
+  if (fileItem.xhr) {
+    fileItem.xhr.abort();
+  }
+
+  // 更新文件状态为取消
+  fileItem.status = "error";
+  fileItem.message = t("file.cancelMessage");
+
+  // 如果已获取了文件ID，则删除相应的文件记录
+  if (fileItem.fileId) {
+    // 根据用户身份选择合适的删除API
+    const deleteApi = props.isAdmin ? deleteFile : deleteUserFile;
+
+    // 删除文件记录
+    deleteApi(fileItem.fileId)
+        .then(() => {
+          console.log("已成功删除被取消的文件记录", fileItem.fileId);
+        })
+        .catch((error) => {
+          console.error("删除被取消的文件记录失败:", error);
+        });
+  }
+
+  // 如果这是当前正在上传的文件，且没有其他文件正在上传，则重置上传状态
+  if (currentUploadIndex.value === index) {
+    // 检查是否还有其他正在上传的文件
+    const stillUploading = fileItems.value.some((item, idx) => idx !== index && item.status === "uploading");
+
+    if (!stillUploading) {
+      // 不设置isUploading.value为false，以确保上传循环继续处理队列中的后续文件
+      // 但重置其他状态，以确保UI显示正确
+      uploadProgress.value = 0;
+      totalProgress.value = 0;
+      uploadSpeed.value = "";
+
+      // 不重置currentUploadIndex，让submitUpload函数的循环继续处理
+      // currentUploadIndex.value = -1;
+    }
+  }
+
+  // 显示提示消息
+  message.value = {
+    type: "warning",
+    content: t("file.singleFileCancelMessage"),
+  };
 };
 </script>
 
