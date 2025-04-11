@@ -1,8 +1,9 @@
 import { Hono } from "hono";
-import { authMiddleware, apiKeyMiddleware } from "../middlewares";
-import { getAllApiKeys, createApiKey, updateApiKey, deleteApiKey } from "../services/apiKeyService";
-import { ApiStatus } from "../constants";
-import { createErrorResponse } from "../utils/common";
+import { authMiddleware } from "../middlewares/authMiddleware.js";
+import { apiKeyMiddleware } from "../middlewares/apiKeyMiddleware.js";
+import { getAllApiKeys, createApiKey, updateApiKey, deleteApiKey } from "../services/apiKeyService.js";
+import { ApiStatus } from "../constants/index.js";
+import { createErrorResponse } from "../utils/common.js";
 
 const apiKeyRoutes = new Hono();
 

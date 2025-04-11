@@ -1,11 +1,11 @@
 /**
  * S3存储配置服务
  */
-import { DbTables, ApiStatus, S3ProviderTypes } from "../constants";
+import { DbTables, ApiStatus, S3ProviderTypes } from "../constants/index.js";
 import { HTTPException } from "hono/http-exception";
-import { createErrorResponse, getLocalTimeString, generateS3ConfigId, formatFileSize } from "../utils/common";
-import { encryptValue, decryptValue } from "../utils/crypto";
-import { createS3Client } from "../utils/s3Utils";
+import { createErrorResponse, getLocalTimeString, generateS3ConfigId, formatFileSize } from "../utils/common.js";
+import { encryptValue, decryptValue } from "../utils/crypto.js";
+import { createS3Client } from "../utils/s3Utils.js";
 import { S3Client, ListObjectsV2Command, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 

@@ -1,8 +1,8 @@
 import { Hono } from "hono";
-import { authMiddleware } from "../middlewares";
-import { getAllSystemSettings, updateSystemSettings, getMaxUploadSize, getDashboardStats } from "../services/systemService";
-import { ApiStatus } from "../constants";
-import { createErrorResponse } from "../utils/common";
+import { authMiddleware } from "../middlewares/authMiddleware.js";
+import { getAllSystemSettings, updateSystemSettings, getMaxUploadSize, getDashboardStats } from "../services/systemService.js";
+import { ApiStatus } from "../constants/index.js";
+import { createErrorResponse } from "../utils/common.js";
 
 const systemRoutes = new Hono();
 

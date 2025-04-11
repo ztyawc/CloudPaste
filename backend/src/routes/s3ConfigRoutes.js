@@ -2,9 +2,9 @@
  * S3存储配置路由
  */
 import { Hono } from "hono";
-import { authMiddleware } from "../middlewares";
-import { validateAdminToken } from "../services/adminService";
-import { checkAndDeleteExpiredApiKey } from "../services/apiKeyService";
+import { authMiddleware } from "../middlewares/authMiddleware.js";
+import { validateAdminToken } from "../services/adminService.js";
+import { checkAndDeleteExpiredApiKey } from "../services/apiKeyService.js";
 import {
   getS3ConfigsByAdmin,
   getPublicS3Configs,
@@ -15,9 +15,16 @@ import {
   deleteS3Config,
   setDefaultS3Config,
   testS3Connection,
-} from "../services/s3ConfigService";
-import { DbTables, ApiStatus } from "../constants";
-import { createErrorResponse, getLocalTimeString } from "../utils/common";
+  getS3ConfigsWithUsage,
+} from "../services/s3ConfigService.js";
+import { DbTables, ApiStatus } from "../constants/index.js";
+import { createErrorResponse, getLocalTimeString } from "../utils/common.js";
+import { HTTPException } from "hono/http-exception";
+import { decryptValue } from "../utils/crypto.js";
+import * as fs from "fs";
+import * as path from "path";
+import { fileURLToPath } from "url";
+import { createS3Client } from "../utils/s3Utils.js";
 
 const s3ConfigRoutes = new Hono();
 
@@ -49,13 +56,13 @@ s3ConfigRoutes.get("/api/s3-configs", async (c) => {
       const apiKey = authHeader.substring(7);
       // 查询API密钥和权限
       const keyRecord = await db
-        .prepare(
-          `SELECT id, name, file_permission, expires_at 
+          .prepare(
+              `SELECT id, name, file_permission, expires_at 
            FROM ${DbTables.API_KEYS} 
            WHERE key = ?`
-        )
-        .bind(apiKey)
-        .first();
+          )
+          .bind(apiKey)
+          .first();
 
       if (keyRecord && keyRecord.file_permission === 1) {
         // 检查是否过期
@@ -64,13 +71,13 @@ s3ConfigRoutes.get("/api/s3-configs", async (c) => {
 
           // 更新最后使用时间
           await db
-            .prepare(
-              `UPDATE ${DbTables.API_KEYS}
+              .prepare(
+                  `UPDATE ${DbTables.API_KEYS}
                SET last_used = ?
                WHERE id = ?`
-            )
-            .bind(getLocalTimeString(), keyRecord.id)
-            .run();
+              )
+              .bind(getLocalTimeString(), keyRecord.id)
+              .run();
         }
       }
     } catch (error) {
@@ -135,13 +142,13 @@ s3ConfigRoutes.get("/api/s3-configs/:id", async (c) => {
       const apiKey = authHeader.substring(7);
       // 查询API密钥和权限
       const keyRecord = await db
-        .prepare(
-          `SELECT id, name, file_permission, expires_at 
+          .prepare(
+              `SELECT id, name, file_permission, expires_at 
            FROM ${DbTables.API_KEYS} 
            WHERE key = ?`
-        )
-        .bind(apiKey)
-        .first();
+          )
+          .bind(apiKey)
+          .first();
 
       if (keyRecord && keyRecord.file_permission === 1) {
         // 检查是否过期
@@ -290,19 +297,19 @@ s3ConfigRoutes.post("/api/s3-configs/:id/test", authMiddleware, async (c) => {
   } catch (error) {
     console.error("测试S3配置错误:", error);
     return c.json(
-      {
-        code: ApiStatus.INTERNAL_ERROR,
-        message: error.message || "测试S3配置失败",
-        data: {
-          success: false,
-          result: {
-            error: error.message,
-            stack: process.env.NODE_ENV === "development" ? error.stack : null,
+        {
+          code: ApiStatus.INTERNAL_ERROR,
+          message: error.message || "测试S3配置失败",
+          data: {
+            success: false,
+            result: {
+              error: error.message,
+              stack: process.env.NODE_ENV === "development" ? error.stack : null,
+            },
           },
+          success: false,
         },
-        success: false,
-      },
-      ApiStatus.INTERNAL_ERROR
+        ApiStatus.INTERNAL_ERROR
     );
   }
 });

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import { apiKeyTextMiddleware } from "../middlewares";
-import { validateAdminToken } from "../services/adminService";
-import { checkAndDeleteExpiredApiKey } from "../services/apiKeyService";
+import { apiKeyTextMiddleware } from "../middlewares/apiKeyMiddleware.js";
+import { validateAdminToken } from "../services/adminService.js";
+import { checkAndDeleteExpiredApiKey } from "../services/apiKeyService.js";
 import {
   createPaste,
   getPasteBySlug,
@@ -11,10 +11,11 @@ import {
   batchDeleteUserPastes,
   updatePaste,
   isPasteAccessible,
-} from "../services/pasteService";
-import { ApiStatus, DbTables } from "../constants";
+  checkAndDeleteExpiredPaste,
+} from "../services/pasteService.js";
+import { ApiStatus, DbTables } from "../constants/index.js";
 import { HTTPException } from "hono/http-exception";
-import { createErrorResponse, getLocalTimeString } from "../utils/common";
+import { createErrorResponse, getLocalTimeString } from "../utils/common.js";
 
 const userPasteRoutes = new Hono();
 

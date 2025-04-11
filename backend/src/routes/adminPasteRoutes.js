@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import { authMiddleware } from "../middlewares";
-import { getAllPastes, getPasteById, deletePaste, batchDeletePastes, updatePaste } from "../services/pasteService";
-import { ApiStatus } from "../constants";
+import { authMiddleware } from "../middlewares/authMiddleware.js";
+import { getAllPastes, getPasteById, deletePaste, batchDeletePastes, updatePaste } from "../services/pasteService.js";
+import { ApiStatus } from "../constants/index.js";
 
 const adminPasteRoutes = new Hono();
 

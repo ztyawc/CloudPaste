@@ -3,6 +3,14 @@
  */
 
 import { sha256 } from "hono/utils/crypto";
+// 导入Node.js的crypto模块以解决ESM环境中的引用错误
+import crypto from "crypto";
+// 为Node.js环境提供Web Crypto API的兼容层
+import { webcrypto } from "crypto";
+// 如果环境中没有全局crypto对象，将webcrypto赋值给全局
+if (typeof globalThis.crypto === "undefined") {
+  globalThis.crypto = webcrypto;
+}
 
 /**
  * 生成密码哈希

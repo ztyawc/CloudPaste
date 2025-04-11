@@ -5,8 +5,8 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { ConfiguredRetryStrategy } from "@smithy/util-retry";
-import { decryptValue } from "./crypto";
-import { S3ProviderTypes } from "../constants";
+import { decryptValue } from "./crypto.js";
+import { S3ProviderTypes } from "../constants/index.js";
 
 /**
  * 创建S3客户端

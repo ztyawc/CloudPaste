@@ -101,10 +101,10 @@
 - [ ] 如使用 R2：开通 **Cloudflare R2** 服务并创建存储桶（需绑定支付方式）
 - [ ] 如使用 Vercel：注册 [Vercel](https://vercel.com) 账号
 - [ ] 其他 S3 存储服务的配置信息：
-  - `S3_ACCESS_KEY_ID`
-  - `S3_SECRET_ACCESS_KEY`
-  - `S3_BUCKET_NAME`
-  - `S3_ENDPOINT`
+   - `S3_ACCESS_KEY_ID`
+   - `S3_SECRET_ACCESS_KEY`
+   - `S3_BUCKET_NAME`
+   - `S3_ENDPOINT`
 
 <details>
 <summary><b>👉 查看完整部署教程</b></summary>
@@ -112,11 +112,11 @@
 ### 📑 目录
 
 - [Action 自动部署](#Action自动部署:)
-  - [后端自动部署](#后端自动部署)
-  - [前端自动部署](#前端自动部署)
+   - [后端自动部署](#后端自动部署)
+   - [前端自动部署](#前端自动部署)
 - [手动部署](#手动部署:)
-  - [后端手动部署](#后端手动部署)
-  - [前端手动部署](#前端手动部署)
+   - [后端手动部署](#后端手动部署)
+   - [前端手动部署](#前端手动部署)
 
 ---
 
@@ -145,20 +145,16 @@
 
 ### 后端自动部署
 
-Fork 仓库，填好密钥，然后运行工作流
+Fork 仓库，填好密钥，然后运行工作流!!!
 每当 `backend` 目录中的文件有更改并推送到 `main` 或 `master` 分支时，会自动触发部署。工作流程如下：
 
-1. 检出代码仓库
-2. 设置 Node.js 环境
-3. 安装依赖
-4. 禁用 Wrangler 遥测数据收集
-5. **自动创建 D1 数据库**（如果不存在）
-6. **用 schema.sql 初始化数据库**（创建表和初始数据）
-7. **设置 ENCRYPTION_SECRET 环境变量**（从 GitHub Secrets 获取或自动生成）
-8. 自动部署 Worker 到 Cloudflare
-9. 建议设置自定义域名代替Cloudflare原本提供的域名(否则国内无法访问)
+1. **自动创建 D1 数据库**（如果不存在）
+2. **用 schema.sql 初始化数据库**（创建表和初始数据）
+3. **设置 ENCRYPTION_SECRET 环境变量**（从 GitHub Secrets 获取或自动生成）
+4. 自动部署 Worker 到 Cloudflare
+5. 建议设置自定义域名代替 Cloudflare 原本提供的域名(否则国内无法访问)
 
-**<span style="color:red">⚠️ 安全提示：请在系统初始化后立即修改默认管理员密码（用户名: admin, 密码: admin123）。</span>**
+**<span style="color:red">⚠️ 记住你的后端域名 </span>**
 
 ### 前端自动部署
 
@@ -173,11 +169,11 @@ Fork 仓库，填好密钥，然后运行工作流
 4. 添加环境变量：
 
    - 名称：`VITE_BACKEND_URL`
-   - 值：您的后端 Worker URL（如 `https://cloudpaste-backend.your-username.workers.dev`）建议使用自定义的worker后端域名。
+   - 值：刚刚部署的后端 Worker URL（如 `https://cloudpaste-backend.your-username.workers.dev`），末尾不带"/", 同时建议使用自定义的 worker 后端域名。
 
    - **<span style="color:red">一定要完整的填写后端域名,"https://xxxx.com" 格式</span>**
 
-5. 随后再次运行一遍工作流，完成后端域名加载
+5. 重要步骤： 随后要再次运行一遍前端的工作流，以便完成后端域名加载！！！
 
    ![test-1](./images/test-1.png)
 
@@ -196,6 +192,7 @@ Build Command（构建命令）: npm run build
 Output Directory（输出目录）: dist
 Install Command（安装命令）: npm install
 ```
+
 3. 在下面配置环境变量：输入：VITE_BACKEND_URL 和你的后端域名
 4. 点击 "Deploy" 按钮进行部署
 
@@ -331,6 +328,188 @@ cd CloudPaste/backend
 </details>
 
 <details>
+<summary><b>👉 Docker部署教程</b></summary>
+
+### 📑 目录
+
+- [Docker 命令行部署](#Docker命令行部署:)
+   - [后端 Docker 部署](#后端Docker部署)
+   - [前端 Docker 部署](#前端Docker部署)
+- [Docker Compose 一键部署](#Docker-Compose一键部署:)
+
+---
+
+## Docker 命令行部署:
+
+### 后端 Docker 部署
+
+CloudPaste 后端支持通过官方 Docker 镜像快速部署。
+
+1. 创建数据存储目录
+
+   ```bash
+   mkdir -p sql_data
+   ```
+
+2. 运行后端容器
+
+   ```bash
+   docker run -d --name cloudpaste-backend \
+     -p 8787:8787 \
+     -v $(pwd)/sql_data:/data \
+     -e ENCRYPTION_SECRET=您的加密密钥 \
+     -e NODE_ENV=production \
+     -e RUNTIME_ENV=docker \
+     dragon730/cloudpaste-backend:latest
+   ```
+
+   记下部署的 URL（如 `http://your-server-ip:8787`），后续前端部署需要用到。
+
+**<span style="color:red">⚠️ 安全提示：请务必自定义 ENCRYPTION_SECRET 并保存好，此密钥用于加密敏感数据。</span>**
+
+### 前端 Docker 部署
+
+前端使用 Nginx 提供服务，并在启动时配置后端 API 地址。
+
+```bash
+docker run -d --name cloudpaste-frontend \
+  -p 80:80 \
+  -e BACKEND_URL=http://your-server-ip:8787 \
+  dragon730/cloudpaste-frontend:latest
+```
+
+**<span style="color:red">⚠️ 注意：BACKEND_URL 必须包含完整 URL（包括协议 http:// 或 https://）</span>**
+**<span style="color:red">⚠️ 安全提示：请在系统初始化后立即修改默认管理员密码（用户名: admin, 密码: admin123）。</span>**
+
+### Docker 镜像更新
+
+当项目发布新版本时，您可以按以下步骤更新 Docker 部署：
+
+1. 拉取最新镜像
+
+   ```bash
+   docker pull dragon730/cloudpaste-backend:latest
+   docker pull dragon730/cloudpaste-frontend:latest
+   ```
+
+2. 停止并移除旧容器
+
+   ```bash
+   docker stop cloudpaste-backend cloudpaste-frontend
+   docker rm cloudpaste-backend cloudpaste-frontend
+   ```
+
+3. 使用上述相同的运行命令启动新容器（保留数据目录和配置）
+
+## Docker-Compose 一键部署:
+
+使用 Docker Compose 可以一键部署前后端服务，是最简单推荐的方式。
+
+1. 创建 `docker-compose.yml` 文件
+
+```yaml
+version: "3.8"
+
+services:
+  frontend:
+    image: dragon730/cloudpaste-frontend:latest
+    environment:
+      - BACKEND_URL=https://xxx.com # 填写后端服务地址
+    ports:
+      - "8080:80" #"127.0.0.1:8080:80"
+    depends_on:
+      - backend # 依赖backend服务
+    networks:
+      - cloudpaste-network
+    restart: unless-stopped
+
+  backend:
+    image: dragon730/cloudpaste-backend:latest
+    environment:
+      - NODE_ENV=production
+      - RUNTIME_ENV=docker
+      - PORT=8787
+      - ENCRYPTION_SECRET=自定义密钥 # 请修改为您自己的安全密钥
+    volumes:
+      - ./sql_data:/data # 数据持久化
+    ports:
+      - "8787:8787" #"127.0.0.1:8787:8787"
+    networks:
+      - cloudpaste-network
+    restart: unless-stopped
+
+networks:
+  cloudpaste-network:
+    driver: bridge
+```
+
+2. 启动服务
+
+```bash
+docker-compose up -d
+```
+**<span style="color:red">⚠️ 安全提示：请在系统初始化后立即修改默认管理员密码（用户名: admin, 密码: admin123）。</span>**
+
+3. 访问服务
+
+前端: `http://your-server-ip:80`
+后端: `http://your-server-ip:8787`
+
+### Docker Compose 更新
+
+当需要更新到新版本时：
+
+1. 拉取最新镜像
+
+   ```bash
+   docker-compose pull
+   ```
+
+2. 使用新镜像重新创建容器（保留数据卷）
+
+   ```bash
+   docker-compose up -d --force-recreate
+   ```
+
+**<span style="color:orange">💡 提示：如果遇到配置变更，可能需要备份数据后修改 docker-compose.yml 文件</span>**
+
+### Nginx 反代示例
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name paste.yourdomain.com;  # 替换为您的域名
+
+    # SSL 证书配置
+    ssl_certificate     /path/to/cert.pem;  # 替换为证书路径
+    ssl_certificate_key /path/to/key.pem;   # 替换为密钥路径
+
+    # 前端代理配置
+    location / {
+        proxy_pass http://localhost:80;  # Docker前端服务地址
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # 后端API代理配置
+    location /api/ {
+        proxy_pass http://localhost:8787/;  # Docker后端服务地址
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+
+        # WebSocket支持 (如果需要)
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+**<span style="color:red">⚠️ 安全提示：建议配置 HTTPS 和反向代理（如 Nginx）以提升安全性。</span>**
+
+</details>
+
+<details>
 <summary><b>👉 S3相关跨域配置教程</b></summary>
 
 ## R2 API 相关获取及跨域配置
@@ -354,7 +533,7 @@ cd CloudPaste/backend
     "MaxAgeSeconds": 3600
   }
 ]
-```
+````
 
 ## B2 API 相关获取及跨域配置
 
@@ -364,11 +543,11 @@ cd CloudPaste/backend
    ![B2key](./images/B2/B2-2.png)
 3. 配置 B2 的跨域，B2 跨域配置比较麻烦，需注意
    ![B2cors](./images/B2/B2-3.png)
-4. 可以先尝试一下 1 或 2，去到上传页面看看是否能上传，F12 打开控制台若显示跨域错误，则使用3。要一劳永逸就直接使用3。
-   
-   ![B21](./images/B2/B2-4.png) 
+4. 可以先尝试一下 1 或 2，去到上传页面看看是否能上传，F12 打开控制台若显示跨域错误，则使用 3。要一劳永逸就直接使用 3。
 
-关于 3 的配置由于面板无法配置，只能手动配置，需[下载 B2 CLI](https://www.backblaze.com/docs/cloud-storage-command-line-tools)对应工具。具体可以参考：“https://docs.cloudreve.org/use/policy/s3#backblaze-b2 ” 。
+   ![B21](./images/B2/B2-4.png)
+
+关于 3 的配置由于面板无法配置，只能手动配置，需[下载 B2 CLI](https://www.backblaze.com/docs/cloud-storage-command-line-tools)对应工具。具体可以参考："https://docs.cloudreve.org/use/policy/s3#backblaze-b2 " 。
 
 下载后，在对应下载目录 cmd，在命令行输入以下命令：
 
@@ -384,7 +563,7 @@ b2.exe bucket get <bucketName> //你可以执行获取bucket信息，<bucketName
 b2.exe bucket update <bucketName> allPrivate --cors-rules "[{\"corsRuleName\":\"CloudPaste\",\"allowedOrigins\":[\"*\"],\"allowedHeaders\":[\"*\"],\"allowedOperations\":[\"b2_upload_file\",\"b2_download_file_by_name\",\"b2_download_file_by_id\",\"s3_head\",\"s3_get\",\"s3_put\",\"s3_post\",\"s3_delete\"],\"exposeHeaders\":[\"Etag\",\"content-length\",\"content-type\",\"x-bz-content-sha1\"],\"maxAgeSeconds\":3600}]"
 ```
 
-其中<bucketName>换成你的存储桶名字，关于允许跨域的域名 allowedOrigins 可以根据个人配置，这里是允许所有。 
+其中<bucketName>换成你的存储桶名字，关于允许跨域的域名 allowedOrigins 可以根据个人配置，这里是允许所有。
 
 5. 已完成跨域配置
 
@@ -477,6 +656,77 @@ CloudPaste/
     └── ...
 ```
 
+### 自定义 Docker 构建
+
+如果您希望自定义 Docker 镜像或进行开发调试，可以按照以下步骤手动构建：
+
+1. **构建后端镜像**
+
+   ```bash
+   # 在项目根目录执行
+   docker build -t cloudpaste-backend:custom -f docker/backend/Dockerfile .
+
+   # 运行自定义构建的镜像
+   docker run -d --name cloudpaste-backend \
+     -p 8787:8787 \
+     -v $(pwd)/sql_data:/data \
+     -e ENCRYPTION_SECRET=开发测试密钥 \
+     cloudpaste-backend:custom
+   ```
+
+2. **构建前端镜像**
+
+   ```bash
+   # 在项目根目录执行
+   docker build -t cloudpaste-frontend:custom -f docker/frontend/Dockerfile .
+
+   # 运行自定义构建的镜像
+   docker run -d --name cloudpaste-frontend \
+     -p 80:80 \
+     -e BACKEND_URL=http://localhost:8787 \
+     cloudpaste-frontend:custom
+   ```
+
+3. **开发环境 Docker Compose**
+
+   创建 `docker-compose.dev.yml` 文件：
+
+   ```yaml
+   version: "3.8"
+
+   services:
+     frontend:
+       build:
+         context: .
+         dockerfile: docker/frontend/Dockerfile
+       environment:
+         - BACKEND_URL=http://backend:8787
+       ports:
+         - "80:80"
+       depends_on:
+         - backend
+
+     backend:
+       build:
+         context: .
+         dockerfile: docker/backend/Dockerfile
+       environment:
+         - NODE_ENV=development
+         - RUNTIME_ENV=docker
+         - PORT=8787
+         - ENCRYPTION_SECRET=dev_secret_key
+       volumes:
+         - ./sql_data:/data
+       ports:
+         - "8787:8787"
+   ```
+
+   启动开发环境：
+
+   ```bash
+   docker-compose -f docker-compose.yml up --build
+   ```
+
 ## 📄 许可证
 
 Apache License 2.0
@@ -487,4 +737,4 @@ Apache License 2.0
 
 [![Star History Chart](https://api.star-history.com/svg?repos=ling-drag0n/CloudPaste&type=Date)](https://star-history.com/#ling-drag0n/CloudPaste&Date)
 
-**如果觉得项目不错希望您能给个免费的star✨✨，非常感谢！**
+**如果觉得项目不错希望您能给个免费的 star✨✨，非常感谢！**

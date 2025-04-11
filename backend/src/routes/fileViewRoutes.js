@@ -1,6 +1,6 @@
-import { DbTables } from "../constants";
-import { verifyPassword } from "../utils/crypto";
-import { generatePresignedUrl, deleteFileFromS3 } from "../utils/s3Utils";
+import { DbTables } from "../constants/index.js";
+import { verifyPassword } from "../utils/crypto.js";
+import { generatePresignedUrl, deleteFileFromS3 } from "../utils/s3Utils.js";
 
 /**
  * 从数据库获取文件信息

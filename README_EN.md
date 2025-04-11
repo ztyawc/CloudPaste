@@ -30,7 +30,7 @@
   </tr>
   <tr>
     <td><img src="./images/image-5.png" width="400"/></td>
-    <td><img src="./images/imageen1.png" width="400"/></td>
+    <td><img src="./images/image-en1.png" width="400"/></td>
   </tr>
 </table>
 
@@ -101,10 +101,10 @@ Before starting deployment, please ensure you have prepared the following:
 - [ ] If using R2: Activate **Cloudflare R2** service and create a bucket (requires payment method)
 - [ ] If using Vercel: Register for a [Vercel](https://vercel.com) account
 - [ ] Configuration information for other S3 storage services:
-  - `S3_ACCESS_KEY_ID`
-  - `S3_SECRET_ACCESS_KEY`
-  - `S3_BUCKET_NAME`
-  - `S3_ENDPOINT`
+   - `S3_ACCESS_KEY_ID`
+   - `S3_SECRET_ACCESS_KEY`
+   - `S3_BUCKET_NAME`
+   - `S3_ENDPOINT`
 
 <details>
 <summary><b>👉 View Complete Deployment Guide</b></summary>
@@ -112,11 +112,11 @@ Before starting deployment, please ensure you have prepared the following:
 ### 📑 Table of Contents
 
 - [Action Automated Deployment](#Action-Automated-Deployment)
-  - [Backend Automated Deployment](#Backend-Automated-Deployment)
-  - [Frontend Automated Deployment](#Frontend-Automated-Deployment)
+   - [Backend Automated Deployment](#Backend-Automated-Deployment)
+   - [Frontend Automated Deployment](#Frontend-Automated-Deployment)
 - [Manual Deployment](#Manual-Deployment)
-  - [Backend Manual Deployment](#Backend-Manual-Deployment)
-  - [Frontend Manual Deployment](#Frontend-Manual-Deployment)
+   - [Backend Manual Deployment](#Backend-Manual-Deployment)
+   - [Frontend Manual Deployment](#Frontend-Manual-Deployment)
 
 ---
 
@@ -145,24 +145,20 @@ Using GitHub Actions enables automatic deployment of the application after code 
 
 ### Backend Automated Deployment
 
-Fork the repository, fill in the secrets, and then run the workflow.
+Fork the repository, fill in the secrets, and then run the workflow!!!
 Deployment is automatically triggered whenever files in the `backend` directory are changed and pushed to the `main` or `master` branch. The workflow proceeds as follows:
 
-1. Checkout code repository
-2. Set up Node.js environment
-3. Install dependencies
-4. Disable Wrangler telemetry data collection
-5. **Automatically create D1 database** (if it doesn't exist)
-6. **Initialize database with schema.sql** (create tables and initial data)
-7. **Set ENCRYPTION_SECRET environment variable** (obtained from GitHub Secrets or automatically generated)
-8. Automatically deploy Worker to Cloudflare
-9. It is recommended to set up a custom domain to replace the default domain provided by Cloudflare (Otherwise, it will be inaccessible from mainland China).
+1. **Automatically create D1 database** (if it doesn't exist)
+2. **Initialize database with schema.sql** (create tables and initial data)
+3. **Set ENCRYPTION_SECRET environment variable** (obtained from GitHub Secrets or automatically generated)
+4. Automatically deploy Worker to Cloudflare
+5. It is recommended to set up a custom domain to replace the original Cloudflare domain (otherwise it may not be accessible in certain regions)
 
-**<span style="color:red">⚠️ Security reminder: Please change the default administrator password immediately after system initialization (Username: admin, Password: admin123).</span>**
+**<span style="color:red">⚠️ Remember your backend domain name</span>**
 
 ### Frontend Automated Deployment
 
-#### Cloudflare Pages（Recommendation）
+#### Cloudflare Pages (Recommended)
 
 Fork the repository, fill in the secrets, and then run the workflow.
 Deployment is automatically triggered whenever files in the `frontend` directory are changed and pushed to the `main` or `master` branch. After deployment, you need to set environment variables in the Cloudflare Pages control panel:
@@ -173,15 +169,15 @@ Deployment is automatically triggered whenever files in the `frontend` directory
 4. Add environment variable:
 
    - Name: `VITE_BACKEND_URL`
-   - Value: Your backend Worker URL (e.g., `https://cloudpaste-backend.your-username.workers.dev`). Using a custom worker backend domain is recommended.
+   - Value: Your backend Worker URL (e.g., `https://cloudpaste-backend.your-username.workers.dev`) without trailing "/". It is recommended to use a custom worker backend domain.
 
-   - **<span style="color:red">Be sure to enter the full backend domain, in the format "https://xxxx.com"</span>**
+   - **<span style="color:red">Make sure to enter the complete backend domain name in "https://xxxx.com" format</span>**
 
-5. Then run the workflow again to complete the backend domain loading
+5. Important step: Then run the frontend workflow again to complete loading the backend domain!!!
 
    ![test-1](./images/test-1.png)
 
-**<span style="color:red">Be sure to follow the steps strictly, otherwise the backend domain loading will fail.</span>**
+**<span style="color:red">Please follow the steps strictly, otherwise the backend domain loading will fail</span>**
 
 #### Vercel
 
@@ -196,6 +192,7 @@ Build Command: npm run build
 Output Directory: dist
 Install Command: npm install
 ```
+
 3. Configure the environment variables below: Enter: VITE_BACKEND_URL and your backend domain
 4. Click the "Deploy" button to deploy
 
@@ -260,7 +257,7 @@ cd CloudPaste/backend
 
 **<span style="color:red">⚠️ Security reminder: Please change the default administrator password immediately after system initialization (Username: admin, Password: admin123).</span>**
 
-## Frontend Manual Deployment
+### Frontend Manual Deployment
 
 #### Cloudflare Pages
 
@@ -331,6 +328,189 @@ cd CloudPaste/backend
 </details>
 
 <details>
+<summary><b>👉 Docker Deployment Guide</b></summary>
+
+### 📑 Table of Contents
+
+- [Docker Command Line Deployment](#Docker-Command-Line-Deployment)
+   - [Backend Docker Deployment](#Backend-Docker-Deployment)
+   - [Frontend Docker Deployment](#Frontend-Docker-Deployment)
+- [Docker Compose One-Click Deployment](#Docker-Compose-One-Click-Deployment)
+
+---
+
+## Docker Command Line Deployment
+
+### Backend Docker Deployment
+
+CloudPaste backend can be quickly deployed using the official Docker image.
+
+1. Create data storage directory
+
+   ```bash
+   mkdir -p sql_data
+   ```
+
+2. Run the backend container
+
+   ```bash
+   docker run -d --name cloudpaste-backend \
+     -p 8787:8787 \
+     -v $(pwd)/sql_data:/data \
+     -e ENCRYPTION_SECRET=your-encryption-key \
+     -e NODE_ENV=production \
+     -e RUNTIME_ENV=docker \
+     dragon730/cloudpaste-backend:latest
+   ```
+
+   Note the deployment URL (e.g., `http://your-server-ip:8787`), which will be needed for the frontend deployment.
+
+**<span style="color:red">⚠️ Security tip: Be sure to customize ENCRYPTION_SECRET and keep it safe, as this key is used to encrypt sensitive data.</span>**
+
+### Frontend Docker Deployment
+
+The frontend uses Nginx to serve and configures the backend API address at startup.
+
+```bash
+docker run -d --name cloudpaste-frontend \
+  -p 80:80 \
+  -e BACKEND_URL=http://your-server-ip:8787 \
+  dragon730/cloudpaste-frontend:latest
+```
+
+**<span style="color:red">⚠️ Note: BACKEND_URL must include the complete URL (including protocol http:// or https://)</span>**
+**<span style="color:red">⚠️ Security reminder: Please change the default administrator password immediately after system initialization (Username: admin, Password: admin123).</span>**
+
+### Docker Image Update
+
+When a new version of the project is released, you can update your Docker deployment following these steps:
+
+1. Pull the latest images
+
+   ```bash
+   docker pull dragon730/cloudpaste-backend:latest
+   docker pull dragon730/cloudpaste-frontend:latest
+   ```
+
+2. Stop and remove old containers
+
+   ```bash
+   docker stop cloudpaste-backend cloudpaste-frontend
+   docker rm cloudpaste-backend cloudpaste-frontend
+   ```
+
+3. Start new containers using the same run commands as above (preserving data directory and configuration)
+
+## Docker Compose One-Click Deployment
+
+Using Docker Compose allows you to deploy both frontend and backend services with one click, which is the simplest recommended method.
+
+1. Create a `docker-compose.yml` file
+
+```yaml
+version: "3.8"
+
+services:
+  frontend:
+    image: dragon730/cloudpaste-frontend:latest
+    environment:
+      - BACKEND_URL=https://xxx.com # Fill in the backend service address
+    ports:
+      - "8080:80" #"127.0.0.1:8080:80"
+    depends_on:
+      - backend # Depends on backend service
+    networks:
+      - cloudpaste-network
+    restart: unless-stopped
+
+  backend:
+    image: dragon730/cloudpaste-backend:latest
+    environment:
+      - NODE_ENV=production
+      - RUNTIME_ENV=docker
+      - PORT=8787
+      - ENCRYPTION_SECRET=custom-key # Please modify this to your own security key
+    volumes:
+      - ./sql_data:/data # Data persistence
+    ports:
+      - "8787:8787" #"127.0.0.1:8787:8787"
+    networks:
+      - cloudpaste-network
+    restart: unless-stopped
+
+networks:
+  cloudpaste-network:
+    driver: bridge
+```
+
+2. Start the services
+
+```bash
+docker-compose up -d
+```
+
+**<span style="color:red">⚠️ Security reminder: Please change the default administrator password immediately after system initialization (Username: admin, Password: admin123).</span>**
+
+3. Access the services
+
+Frontend: `http://your-server-ip:80`
+Backend: `http://your-server-ip:8787`
+
+### Docker Compose Update
+
+When you need to update to a new version:
+
+1. Pull the latest images
+
+   ```bash
+   docker-compose pull
+   ```
+
+2. Recreate containers using new images (preserving data volumes)
+
+   ```bash
+   docker-compose up -d --force-recreate
+   ```
+
+**<span style="color:orange">💡 Tip: If there are configuration changes, you may need to backup data and modify the docker-compose.yml file</span>**
+
+### Nginx Reverse Proxy Example
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name paste.yourdomain.com;  # Replace with your domain name
+
+    # SSL certificate configuration
+    ssl_certificate     /path/to/cert.pem;  # Replace with certificate path
+    ssl_certificate_key /path/to/key.pem;   # Replace with key path
+
+    # Frontend proxy configuration
+    location / {
+        proxy_pass http://localhost:80;  # Docker frontend service address
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Backend API proxy configuration
+    location /api/ {
+        proxy_pass http://localhost:8787/;  # Docker backend service address
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+
+        # WebSocket support (if needed)
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+**<span style="color:red">⚠️ Security tip: It is recommended to configure HTTPS and a reverse proxy (such as Nginx) to enhance security.</span>**
+
+</details>
+
+<details>
 <summary><b>👉 S3 Cross-Origin Configuration Guide</b></summary>
 
 ## R2 API Retrieval and Cross-Origin Configuration
@@ -338,10 +518,8 @@ cd CloudPaste/backend
 1. Log in to Cloudflare Dashboard
 2. Click R2 Storage and create a bucket.
 3. Create API token
-
    ![R2api](./images/R2/R2-api.png)
    ![R2rw](./images/R2/R2-rw.png)
-
 
 4. Save all data after creation; you'll need it later
 5. Configure cross-origin rules: click the corresponding bucket, click Settings, edit CORS policy as shown below:
@@ -367,10 +545,10 @@ cd CloudPaste/backend
 3. Configure B2 cross-origin; B2 cross-origin configuration is more complex, take note
    ![B2cors](./images/B2/B2-3.png)
 4. You can try options 1 or 2 first, go to the upload page and see if you can upload. If F12 console shows cross-origin errors, use option 3. For a permanent solution, use option 3 directly.
-   
+
    ![B21](./images/B2/B2-4.png)
 
-Regarding option 3 configuration, since the panel cannot configure it, you need to configure manually by [downloading B2 CLI](https://www.backblaze.com/docs/cloud-storage-command-line-tools) tool. For details, please refer to: "https://docs.cloudreve.org/use/policy/s3#backblaze-b2 ".
+Regarding option 3 configuration, since the panel cannot configure it, you need to configure manually by [downloading B2 CLI](https://www.backblaze.com/docs/cloud-storage-command-line-tools) tool. For more details, refer to: "https://docs.cloudreve.org/use/policy/s3#backblaze-b2".
 
 After downloading, in the corresponding download directory CMD, enter the following commands:
 
@@ -385,7 +563,7 @@ Since I'm configuring on Windows, I input in CMD in the corresponding CLI's exe 
 b2.exe bucket update <bucketName> allPrivate --cors-rules "[{\"corsRuleName\":\"CloudPaste\",\"allowedOrigins\":[\"*\"],\"allowedHeaders\":[\"*\"],\"allowedOperations\":[\"b2_upload_file\",\"b2_download_file_by_name\",\"b2_download_file_by_id\",\"s3_head\",\"s3_get\",\"s3_put\",\"s3_post\",\"s3_delete\"],\"exposeHeaders\":[\"Etag\",\"content-length\",\"content-type\",\"x-bz-content-sha1\"],\"maxAgeSeconds\":3600}]"
 ```
 
-Replace <bucketName> with your bucket name. For allowedOrigins in the cross-origin allowance, you can configure based on your needs; here it allows all. 
+Replace <bucketName> with your bucket name. For allowedOrigins in the cross-origin allowance, you can configure based on your needs; here it allows all.
 
 5. Cross-origin configuration complete
 
@@ -478,18 +656,82 @@ CloudPaste/
     └── ...
 ```
 
+### Custom Docker Build
+
+If you want to customize Docker images or debug during development, you can follow these steps to build manually:
+
+1. **Build backend image**
+
+   ```bash
+   # Execute in the project root directory
+   docker build -t cloudpaste-backend:custom -f docker/backend/Dockerfile .
+
+   # Run the custom built image
+   docker run -d --name cloudpaste-backend \
+     -p 8787:8787 \
+     -v $(pwd)/sql_data:/data \
+     -e ENCRYPTION_SECRET=development-test-key \
+     cloudpaste-backend:custom
+   ```
+
+2. **Build frontend image**
+
+   ```bash
+   # Execute in the project root directory
+   docker build -t cloudpaste-frontend:custom -f docker/frontend/Dockerfile .
+
+   # Run the custom built image
+   docker run -d --name cloudpaste-frontend \
+     -p 80:80 \
+     -e BACKEND_URL=http://localhost:8787 \
+     cloudpaste-frontend:custom
+   ```
+
+3. **Development environment Docker Compose**
+
+   Create a `docker-compose.dev.yml` file:
+
+   ```yaml
+   version: "3.8"
+
+   services:
+     frontend:
+       build:
+         context: .
+         dockerfile: docker/frontend/Dockerfile
+       environment:
+         - BACKEND_URL=http://backend:8787
+       ports:
+         - "80:80"
+       depends_on:
+         - backend
+
+     backend:
+       build:
+         context: .
+         dockerfile: docker/backend/Dockerfile
+       environment:
+         - NODE_ENV=development
+         - RUNTIME_ENV=docker
+         - PORT=8787
+         - ENCRYPTION_SECRET=dev_secret_key
+       volumes:
+         - ./sql_data:/data
+       ports:
+         - "8787:8787"
+   ```
+
+   Start the development environment:
+
+   ```bash
+   docker-compose -f docker-compose.yml up --build
+   ```
+
 ## 📄 License
 
 Apache License 2.0
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
-**Key points of this license for this project:**
-
-- You are free to use, modify, and distribute this software
-- You can use this software for commercial purposes
-- You must retain the original copyright notice and attribution
-- No warranty is provided, and the author is not liable for any damages
 
 ## Star History
 

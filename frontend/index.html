@@ -11,8 +11,11 @@
     <link rel="apple-touch-icon" href="/icons-32.png" />
     <link rel="manifest" href="/manifest.json" />
     <title>CloudPaste - 安全分享您的内容</title>
-    <!-- 运行时配置文件 -->
-    <script src="/config.js"></script>
+    <!-- 运行时配置文件，添加时间戳防止缓存 -->
+    <script>
+        // 添加时间戳防止缓存config.js
+        document.write('<script src="/config.js?t=' + new Date().getTime() + '"><\/script>');
+    </script>
 </head>
 <body>
 <div id="app"></div>

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import { authMiddleware } from "../middlewares";
-import { login, logout, changePassword, testAdminToken } from "../services/adminService";
-import { ApiStatus } from "../constants";
+import { authMiddleware } from "../middlewares/authMiddleware.js";
+import { login, logout, changePassword, testAdminToken } from "../services/adminService.js";
+import { ApiStatus } from "../constants/index.js";
 
 const adminRoutes = new Hono();
 

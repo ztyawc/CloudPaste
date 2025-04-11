@@ -1,37 +1,45 @@
 /**
- * API配置文件
+ * API统一配置文件
  * 管理API请求的基础URL和其他配置
+ * 支持本地开发、生产和Docker部署环境
  */
 
 // 默认的开发环境API基础URL
 const DEFAULT_DEV_API_URL = "http://localhost:8787";
 
-// 优先从全局配置读取，然后是localStorage，然后是环境变量，最后是默认值
-// 这允许通过运行时配置切换API环境而不需要重新构建
+// 检查是否在Docker环境中运行
+const isDockerEnvironment = () => {
+  return import.meta.env.VITE_IS_DOCKER === "true";
+};
+
+// 优先从全局配置读取，然后根据环境选择不同的回退策略
 function getApiBaseUrl() {
-  // 首先检查运行时配置 (window.appConfig)
+  // 首先检查运行时配置 (window.appConfig) - 所有环境通用
   if (typeof window !== "undefined" && window.appConfig && window.appConfig.backendUrl) {
     const runtimeUrl = window.appConfig.backendUrl;
-    // 忽略占位符值
-    if (runtimeUrl !== "__BACKEND_URL__") {
+    // 统一使用__BACKEND_URL__作为占位符，避免不同环境处理逻辑不一致
+    if (runtimeUrl !== "__" + "BACKEND_URL__") {
+      console.log("使用运行时配置的后端URL:", runtimeUrl);
       return runtimeUrl;
     }
   }
 
-  // 其次检查localStorage（开发环境和生产环境都检查）
-  if (typeof window !== "undefined" && window.localStorage) {
+  // 非Docker环境下才检查localStorage
+  if (!isDockerEnvironment() && typeof window !== "undefined" && window.localStorage) {
     const storedUrl = localStorage.getItem("vite-api-base-url");
     if (storedUrl) {
+      console.log("非Docker环境：使用localStorage中的后端URL:", storedUrl);
       return storedUrl;
     }
   }
 
-  // 第三使用环境变量
+  // 所有环境都检查环境变量
   const envUrl = import.meta.env.VITE_BACKEND_URL;
   if (envUrl) {
     return envUrl;
   }
 
+  // 最后使用默认值
   return DEFAULT_DEV_API_URL;
 }
 
@@ -63,6 +71,7 @@ export const getEnvironmentInfo = () => {
     mode: import.meta.env.MODE,
     isDevelopment: import.meta.env.DEV,
     isProduction: import.meta.env.PROD,
-    backendUrl: import.meta.env.VITE_BACKEND_URL,
+    backendUrl: window?.appConfig?.backendUrl || import.meta.env.VITE_BACKEND_URL,
+    isDockerBuild: isDockerEnvironment(),
   };
 };

@@ -5,7 +5,9 @@
   "main": "worker.js",
   "scripts": {
     "dev": "wrangler dev --local",
-    "deploy": "wrangler publish"
+    "deploy": "wrangler publish",
+    "docker-dev": "cross-env RUNTIME_ENV=docker PORT=8787 DATA_DIR=./data node server.js",
+    "docker-start": "cross-env RUNTIME_ENV=docker PORT=8787 DATA_DIR=/data node server.js"
   },
   "keywords": [
     "cloudflare",
@@ -16,13 +18,23 @@
   ],
   "author": "",
   "license": "MIT",
+  "type": "module",
   "dependencies": {
+    "@aws-crypto/sha256-browser": "^5.2.0",
+    "@aws-crypto/sha256-js": "^5.2.0",
     "@aws-sdk/client-s3": "^3.775.0",
     "@aws-sdk/lib-storage": "^3.775.0",
     "@aws-sdk/s3-request-presigner": "^3.775.0",
-    "hono": "^3.2.0"
+    "hono": "^3.2.0",
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
   },
   "devDependencies": {
-    "wrangler": "^3.0.0"
+    "wrangler": "^3.0.0",
+    "cross-env": "^7.0.3"
+  },
+  "optionalDependencies": {
+    "sqlite3": "^5.1.6",
+    "sqlite": "^5.1.1"
   }
 }

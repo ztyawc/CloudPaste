@@ -1,6 +1,6 @@
-import { DbTables } from "../constants";
-import { generateRandomString, createErrorResponse } from "../utils/common";
-import { ApiStatus } from "../constants";
+import { DbTables } from "../constants/index.js";
+import { generateRandomString, createErrorResponse } from "../utils/common.js";
+import { ApiStatus } from "../constants/index.js";
 
 /**
  * 检查并删除过期的API密钥
@@ -35,8 +35,8 @@ export async function getAllApiKeys(db) {
 
   // 查询所有密钥，并隐藏完整密钥
   const keys = await db
-    .prepare(
-      `
+      .prepare(
+          `
     SELECT 
       id, 
       name, 
@@ -50,8 +50,8 @@ export async function getAllApiKeys(db) {
     FROM ${DbTables.API_KEYS}
     ORDER BY created_at DESC
   `
-    )
-    .all();
+      )
+      .all();
 
   return keys.results;
 }
@@ -105,14 +105,14 @@ export async function createApiKey(db, keyData) {
 
   // 插入到数据库
   await db
-    .prepare(
-      `
+      .prepare(
+          `
     INSERT INTO ${DbTables.API_KEYS} (id, name, key, text_permission, file_permission, expires_at)
     VALUES (?, ?, ?, ?, ?, ?)
   `
-    )
-    .bind(id, keyData.name.trim(), key, textPermission, filePermission, expiresAt.toISOString())
-    .run();
+      )
+      .bind(id, keyData.name.trim(), key, textPermission, filePermission, expiresAt.toISOString())
+      .run();
 
   // 准备响应数据
   return {
@@ -202,9 +202,9 @@ export async function updateApiKey(db, id, updateData) {
 
   // 执行更新
   await db
-    .prepare(`UPDATE ${DbTables.API_KEYS} SET ${updates.join(", ")} WHERE id = ?`)
-    .bind(...params)
-    .run();
+      .prepare(`UPDATE ${DbTables.API_KEYS} SET ${updates.join(", ")} WHERE id = ?`)
+      .bind(...params)
+      .run();
 }
 
 /**
@@ -235,13 +235,13 @@ export async function getApiKeyByKey(db, key) {
   if (!key) return null;
 
   const result = await db
-    .prepare(
-      `SELECT id, name, key, text_permission, file_permission, expires_at, last_used
+      .prepare(
+          `SELECT id, name, key, text_permission, file_permission, expires_at, last_used
        FROM ${DbTables.API_KEYS}
        WHERE key = ?`
-    )
-    .bind(key)
-    .first();
+      )
+      .bind(key)
+      .first();
 
   return result;
 }
