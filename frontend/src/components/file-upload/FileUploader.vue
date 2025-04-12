@@ -424,7 +424,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, defineProps, defineEmits, getCurrentInstance, onMounted, watch } from "vue";
+import { ref, reactive, defineProps, defineEmits, getCurrentInstance, onMounted, onUnmounted, watch } from "vue";
 import { api } from "../../api";
 import { API_BASE_URL } from "../../api/config"; // 导入API_BASE_URL
 import { directUploadFile } from "../../api/fileService"; // 导入新的直接上传函数
@@ -452,7 +452,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["upload-success", "upload-error"]);
+const emit = defineEmits(["upload-success", "upload-error", "refresh-files"]);
 
 // 最大文件大小限制(MB)
 const maxFileSizeMB = ref(100); // 默认值
@@ -489,7 +489,7 @@ const formData = reactive({
 // 当前上传文件的ID
 const currentFileId = ref(null);
 
-// 组件挂载时获取最大上传大小
+// 组件挂载时获取最大上传大小并添加粘贴事件监听
 onMounted(async () => {
   try {
     const size = await getMaxUploadSize();
@@ -498,7 +498,53 @@ onMounted(async () => {
     console.error("获取最大上传大小失败:", error);
     // 失败时保持默认值
   }
+
+  // 添加粘贴事件监听
+  document.addEventListener("paste", handlePaste);
 });
+
+// 组件卸载时移除粘贴事件监听
+onUnmounted(() => {
+  document.removeEventListener("paste", handlePaste);
+});
+
+// 处理粘贴事件
+const handlePaste = (event) => {
+  if (event.clipboardData && event.clipboardData.files.length > 0) {
+    event.preventDefault();
+
+    // 处理所有粘贴的文件
+    Array.from(event.clipboardData.files).forEach((file) => {
+      // 验证文件大小是否超过限制
+      if (file.size > maxFileSizeMB.value * 1024 * 1024) {
+        message.value = {
+          type: "error",
+          content: t("file.maxSizeExceeded", { size: maxFileSizeMB.value }),
+        };
+        // 触发错误事件，让父组件处理消息显示
+        emit("upload-error", new Error(t("file.maxSizeExceeded", { size: formatMaxFileSize() })));
+        return;
+      }
+
+      // 检查文件是否已经在列表中（基于名称和大小）
+      const isFileAlreadyAdded = selectedFiles.value.some((existingFile) => existingFile.name === file.name && existingFile.size === file.size);
+
+      if (!isFileAlreadyAdded) {
+        selectedFiles.value.push(file);
+
+        // 初始化文件项状态
+        fileItems.value.push({
+          file,
+          progress: 0,
+          status: "pending", // pending, uploading, success, error
+          message: "",
+          fileId: null,
+          xhr: null,
+        });
+      }
+    });
+  }
+};
 
 // 监听s3Configs变化，自动选择默认配置
 watch(
@@ -1035,6 +1081,9 @@ const submitUpload = async () => {
     // 成功事件
     emit("upload-success", uploadResults);
 
+    // 触发刷新文件列表事件
+    emit("refresh-files");
+
     // 重置表单数据
     formData.slug = "";
     formData.remark = "";
@@ -1192,6 +1241,9 @@ const retryUpload = async (index) => {
       type: "success",
       content: t("file.retrySuccessful"),
     };
+
+    // 触发刷新文件列表事件
+    emit("refresh-files");
 
     // 延迟从列表中移除成功上传的文件
     setTimeout(() => {
