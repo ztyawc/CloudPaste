@@ -43,7 +43,8 @@
 - **Flexible Expiration**: Support for setting content expiration times
 - **Access Control**: Ability to limit maximum view count
 - **Customization**: Personalized share links and notes
-- **Multi-format Export**: Support for PDF, Markdown, and HTML export
+- **Support for Raw text direct links**: Similar to GitHub's Raw direct links, used for services launched via YAML configuration files
+- **Multi-format export**: Supports export to PDF, Markdown, HTML, PNG images, and Word documents
 - **Easy Sharing**: One-click link copying and QR code generation
 - **Auto-save**: Support for automatic draft saving
 
@@ -56,6 +57,7 @@
 - **Custom Limits**: Single upload limits and maximum capacity restrictions
 - **Metadata Management**: File notes, passwords, expiration times, access restrictions
 - **Data Analysis**: File access statistics and trend analysis
+- **Direct Server Transfer**: Supports calling APIs for file upload, download, and other operations.
 
 ### 🛠 Convenient File/Text Operations
 
@@ -411,36 +413,36 @@ Using Docker Compose allows you to deploy both frontend and backend services wit
 version: "3.8"
 
 services:
-  frontend:
-    image: dragon730/cloudpaste-frontend:latest
-    environment:
-      - BACKEND_URL=https://xxx.com # Fill in the backend service address
-    ports:
-      - "8080:80" #"127.0.0.1:8080:80"
-    depends_on:
-      - backend # Depends on backend service
-    networks:
-      - cloudpaste-network
-    restart: unless-stopped
+   frontend:
+      image: dragon730/cloudpaste-frontend:latest
+      environment:
+         - BACKEND_URL=https://xxx.com # Fill in the backend service address
+      ports:
+         - "8080:80" #"127.0.0.1:8080:80"
+      depends_on:
+         - backend # Depends on backend service
+      networks:
+         - cloudpaste-network
+      restart: unless-stopped
 
-  backend:
-    image: dragon730/cloudpaste-backend:latest
-    environment:
-      - NODE_ENV=production
-      - RUNTIME_ENV=docker
-      - PORT=8787
-      - ENCRYPTION_SECRET=custom-key # Please modify this to your own security key
-    volumes:
-      - ./sql_data:/data # Data persistence
-    ports:
-      - "8787:8787" #"127.0.0.1:8787:8787"
-    networks:
-      - cloudpaste-network
-    restart: unless-stopped
+   backend:
+      image: dragon730/cloudpaste-backend:latest
+      environment:
+         - NODE_ENV=production
+         - RUNTIME_ENV=docker
+         - PORT=8787
+         - ENCRYPTION_SECRET=custom-key # Please modify this to your own security key
+      volumes:
+         - ./sql_data:/data # Data persistence
+      ports:
+         - "8787:8787" #"127.0.0.1:8787:8787"
+      networks:
+         - cloudpaste-network
+      restart: unless-stopped
 
 networks:
-  cloudpaste-network:
-    driver: bridge
+   cloudpaste-network:
+      driver: bridge
 ```
 
 2. Start the services
@@ -526,13 +528,13 @@ server {
 
 ```json
 [
-  {
-    "AllowedOrigins": ["http://localhost:3000", "https://replace-with-your-frontend-domain"],
-    "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
-    "AllowedHeaders": ["*"],
-    "ExposeHeaders": ["ETag"],
-    "MaxAgeSeconds": 3600
-  }
+   {
+      "AllowedOrigins": ["http://localhost:3000", "https://replace-with-your-frontend-domain"],
+      "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+      "AllowedHeaders": ["*"],
+      "ExposeHeaders": ["ETag"],
+      "MaxAgeSeconds": 3600
+   }
 ]
 ```
 
@@ -594,6 +596,8 @@ Replace <bucketName> with your bucket name. For allowedOrigins in the cross-orig
 ### API Documentation
 
 [API Documentation](Api-doc.md)
+
+[Server Direct File Upload API Documentation](Api-s3_direct.md) - Detailed description of the server direct file upload interface
 
 ### Local Development Setup
 

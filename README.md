@@ -43,7 +43,8 @@
 - **灵活时效**：支持设置内容过期时间
 - **访问控制**：可限制最大查看次数
 - **个性化**：自定义分享链接及备注
-- **多格式导出**：支持 PDF、Markdown、HTML 导出
+- **支持文本Raw直链**：类似gihub的Raw直链，用于yaml配置文件来启动的服务
+- **多格式导出**：支持 PDF、Markdown、HTML、PNG图片、Word文档 导出
 - **便捷分享**：一键复制分享链接和生成二维码
 - **自动保存**：支持自动保存草稿功能
 
@@ -51,11 +52,12 @@
 
 - **多存储支持**：兼容多种 S3 存储服务 (Cloudflare R2、Backblaze B2、AWS S3 等)
 - **存储配置**：可视化界面配置多个存储空间，灵活切换默认存储源
-- **高效上传**：通过预签名 URL 直接上传至 S3 存储
+- **高效上传**：通过预签名 URL 直接上传至 S3 存储，多文件上传
 - **实时反馈**：上传进度实时显示
 - **自定义限制**：单次上传限制和最大容量限制
 - **元数据管理**：文件备注、密码、过期时间、访问限制
 - **数据分析**：文件访问统计与趋势分析
+- **服务器直传**：支持调接口进行文件上传、下载等操作
 
 ### 🛠 便捷的文件/文本操作
 
@@ -411,36 +413,36 @@ docker run -d --name cloudpaste-frontend \
 version: "3.8"
 
 services:
-  frontend:
-    image: dragon730/cloudpaste-frontend:latest
-    environment:
-      - BACKEND_URL=https://xxx.com # 填写后端服务地址
-    ports:
-      - "8080:80" #"127.0.0.1:8080:80"
-    depends_on:
-      - backend # 依赖backend服务
-    networks:
-      - cloudpaste-network
-    restart: unless-stopped
+   frontend:
+      image: dragon730/cloudpaste-frontend:latest
+      environment:
+         - BACKEND_URL=https://xxx.com # 填写后端服务地址
+      ports:
+         - "8080:80" #"127.0.0.1:8080:80"
+      depends_on:
+         - backend # 依赖backend服务
+      networks:
+         - cloudpaste-network
+      restart: unless-stopped
 
-  backend:
-    image: dragon730/cloudpaste-backend:latest
-    environment:
-      - NODE_ENV=production
-      - RUNTIME_ENV=docker
-      - PORT=8787
-      - ENCRYPTION_SECRET=自定义密钥 # 请修改为您自己的安全密钥
-    volumes:
-      - ./sql_data:/data # 数据持久化
-    ports:
-      - "8787:8787" #"127.0.0.1:8787:8787"
-    networks:
-      - cloudpaste-network
-    restart: unless-stopped
+   backend:
+      image: dragon730/cloudpaste-backend:latest
+      environment:
+         - NODE_ENV=production
+         - RUNTIME_ENV=docker
+         - PORT=8787
+         - ENCRYPTION_SECRET=自定义密钥 # 请修改为您自己的安全密钥
+      volumes:
+         - ./sql_data:/data # 数据持久化
+      ports:
+         - "8787:8787" #"127.0.0.1:8787:8787"
+      networks:
+         - cloudpaste-network
+      restart: unless-stopped
 
 networks:
-  cloudpaste-network:
-    driver: bridge
+   cloudpaste-network:
+      driver: bridge
 ```
 
 2. 启动服务
@@ -525,13 +527,13 @@ server {
 
 ```json
 [
-  {
-    "AllowedOrigins": ["http://localhost:3000", "https://根据自己的前端域名来替代"],
-    "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
-    "AllowedHeaders": ["*"],
-    "ExposeHeaders": ["ETag"],
-    "MaxAgeSeconds": 3600
-  }
+   {
+      "AllowedOrigins": ["http://localhost:3000", "https://根据自己的前端域名来替代"],
+      "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+      "AllowedHeaders": ["*"],
+      "ExposeHeaders": ["ETag"],
+      "MaxAgeSeconds": 3600
+   }
 ]
 ````
 
@@ -594,6 +596,8 @@ b2.exe bucket update <bucketName> allPrivate --cors-rules "[{\"corsRuleName\":\"
 ### API 文档
 
 [API 文档](Api-doc.md)
+
+[服务器 文件直传 API 文档](Api-s3_direct.md) - 服务器 文件直传接口详细说明
 
 ### 本地开发设置
 

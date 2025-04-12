@@ -52,6 +52,13 @@ export async function createS3Client(config, encryptionSecret) {
       clientConfig.requestTimeout = 30000;
       break;
 
+    case S3ProviderTypes.AWS:
+      // AWS配置
+      clientConfig.signatureVersion = "v4";
+      clientConfig.requestTimeout = 30000;
+      maxRetries = 3;
+      break;
+
     case S3ProviderTypes.OTHER:
       clientConfig.signatureVersion = "v4";
       break;
