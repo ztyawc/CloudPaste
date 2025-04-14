@@ -495,7 +495,7 @@ server {
 
     # 后端API代理配置
     location /api/ {
-        proxy_pass http://localhost:8787/;  # Docker后端服务地址
+        proxy_pass http://localhost:8787;  # Docker后端服务地址
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
 
