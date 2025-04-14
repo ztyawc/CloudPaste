@@ -496,7 +496,7 @@ server {
 
     # Backend API proxy configuration
     location /api/ {
-        proxy_pass http://localhost:8787/;  # Docker backend service address
+        proxy_pass http://localhost:8787;  # Docker backend service address
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
 
