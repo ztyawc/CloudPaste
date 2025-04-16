@@ -17,9 +17,10 @@ const DEFAULT_MAX_UPLOAD_SIZE_MB = 100;
  * 生成唯一的文件slug
  * @param {D1Database} db - D1数据库实例
  * @param {string} customSlug - 自定义slug
+ * @param {boolean} override - 是否覆盖已存在的slug
  * @returns {Promise<string>} 生成的唯一slug
  */
-async function generateUniqueFileSlug(db, customSlug = null) {
+async function generateUniqueFileSlug(db, customSlug = null, override = false) {
   // 如果提供了自定义slug，验证其格式并检查是否已存在
   if (customSlug) {
     // 验证slug格式：只允许字母、数字、横杠和下划线
@@ -30,8 +31,12 @@ async function generateUniqueFileSlug(db, customSlug = null) {
 
     // 检查slug是否已存在
     const existingFile = await db.prepare(`SELECT id FROM ${DbTables.FILES} WHERE slug = ?`).bind(customSlug).first();
-    if (existingFile) {
+
+    // 如果存在并且不覆盖，抛出错误；否则允许使用
+    if (existingFile && !override) {
       throw new Error("链接后缀已被占用，请使用其他链接后缀");
+    } else if (existingFile && override) {
+      console.log(`允许覆盖已存在的链接后缀: ${customSlug}`);
     }
 
     return customSlug;
@@ -220,13 +225,46 @@ export function registerS3UploadRoutes(app) {
       // 生成slug (不冲突的唯一短链接)
       let slug;
       try {
-        slug = await generateUniqueFileSlug(db, body.slug);
+        slug = await generateUniqueFileSlug(db, body.slug, body.override === "true");
       } catch (error) {
         // 如果是slug冲突，返回HTTP 409状态码
         if (error.message.includes("链接后缀已被占用")) {
           return c.json(createErrorResponse(ApiStatus.CONFLICT, error.message), ApiStatus.CONFLICT);
         }
         throw error; // 其他错误继续抛出
+      }
+
+      // 如果启用了覆盖并且找到了已存在的slug，删除旧文件
+      if (body.override === "true" && body.slug) {
+        const existingFile = await db.prepare(`SELECT id, storage_path, s3_config_id FROM ${DbTables.FILES} WHERE slug = ?`).bind(body.slug).first();
+        if (existingFile) {
+          console.log(`覆盖模式：删除已存在的文件记录 Slug: ${body.slug}`);
+
+          try {
+            // 获取S3配置以便删除实际文件
+            const s3Config = await db.prepare(`SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ?`).bind(existingFile.s3_config_id).first();
+
+            // 如果找到S3配置，先尝试删除S3存储中的实际文件
+            if (s3Config) {
+              const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
+              const deleteResult = await deleteFileFromS3(s3Config, existingFile.storage_path, encryptionSecret);
+              if (deleteResult) {
+                console.log(`成功从S3删除文件: ${existingFile.storage_path}`);
+              } else {
+                console.warn(`无法从S3删除文件: ${existingFile.storage_path}，但将继续删除数据库记录`);
+              }
+            }
+
+            // 删除旧文件的数据库记录
+            await db.prepare(`DELETE FROM ${DbTables.FILES} WHERE id = ?`).bind(existingFile.id).run();
+
+            // 删除关联的密码记录（如果有）
+            await db.prepare(`DELETE FROM ${DbTables.FILE_PASSWORDS} WHERE file_id = ?`).bind(existingFile.id).run();
+          } catch (deleteError) {
+            console.error(`删除旧文件记录时出错: ${deleteError.message}`);
+            // 继续流程，不中断上传
+          }
+        }
       }
 
       // 处理文件路径
@@ -591,7 +629,6 @@ export function registerS3UploadRoutes(app) {
     }
   });
 
-  // 文件直传的API
   app.put("/api/upload-direct/:filename", async (c) => {
     const db = c.env.DB;
     const filename = c.req.param("filename");
@@ -833,18 +870,54 @@ export function registerS3UploadRoutes(app) {
       const password = c.req.query("password");
       const expiresInHours = c.req.query("expires_in") ? parseInt(c.req.query("expires_in")) : 0;
       const maxViews = c.req.query("max_views") ? parseInt(c.req.query("max_views")) : 0;
+      // 添加 override 参数
+      const override = c.req.query("override") === "true";
 
       // 生成文件ID和唯一Slug
       const fileId = generateFileId();
       let slug;
       try {
-        slug = await generateUniqueFileSlug(db, customSlug);
+        // 传递 override 参数给函数
+        slug = await generateUniqueFileSlug(db, customSlug, override);
       } catch (error) {
         // 如果是slug冲突，返回HTTP 409状态码
         if (error.message.includes("链接后缀已被占用")) {
           return c.json(createErrorResponse(ApiStatus.CONFLICT, error.message), ApiStatus.CONFLICT);
         }
         throw error;
+      }
+
+      // 如果启用了覆盖并且找到了已存在的slug，删除旧文件
+      if (override && customSlug) {
+        const existingFile = await db.prepare(`SELECT id, storage_path, s3_config_id FROM ${DbTables.FILES} WHERE slug = ?`).bind(customSlug).first();
+        if (existingFile) {
+          console.log(`覆盖模式：删除已存在的文件记录  Slug: ${customSlug}`);
+
+          try {
+            // 获取S3配置以便删除实际文件
+            const s3Config = await db.prepare(`SELECT * FROM ${DbTables.S3_CONFIGS} WHERE id = ?`).bind(existingFile.s3_config_id).first();
+
+            // 如果找到S3配置，先尝试删除S3存储中的实际文件
+            if (s3Config) {
+              const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
+              const deleteResult = await deleteFileFromS3(s3Config, existingFile.storage_path, encryptionSecret);
+              if (deleteResult) {
+                console.log(`成功从S3删除文件: ${existingFile.storage_path}`);
+              } else {
+                console.warn(`无法从S3删除文件: ${existingFile.storage_path}，但将继续删除数据库记录`);
+              }
+            }
+
+            // 删除旧文件的数据库记录
+            await db.prepare(`DELETE FROM ${DbTables.FILES} WHERE id = ?`).bind(existingFile.id).run();
+
+            // 删除关联的密码记录（如果有）
+            await db.prepare(`DELETE FROM ${DbTables.FILE_PASSWORDS} WHERE file_id = ?`).bind(existingFile.id).run();
+          } catch (deleteError) {
+            console.error(`删除旧文件记录时出错: ${deleteError.message}`);
+            // 继续流程，不中断上传
+          }
+        }
       }
 
       // 正确获取Content-Type，如果没有提供，根据文件扩展名推断
@@ -976,7 +1049,8 @@ export function registerS3UploadRoutes(app) {
       if (expiresInHours > 0) {
         const expiryDate = new Date();
         expiryDate.setHours(expiryDate.getHours() + expiresInHours);
-        expiresAt = expiryDate.toISOString().replace("T", " ").substring(0, 19); // 格式化为 YYYY-MM-DD HH:MM:SS
+        // 使用统一格式并保留完整时区信息，确保准确的过期时间计算
+        expiresAt = expiryDate.toISOString();
       }
 
       // 默认使用代理 (1 = 使用代理, 0 = 直接访问)
