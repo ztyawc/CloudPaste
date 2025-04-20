@@ -13,6 +13,7 @@ import { findMountPointByPath } from "../webdav/utils/webdavUtils.js";
 import { generatePresignedPutUrl, buildS3Url } from "../utils/s3Utils.js";
 import { directoryCacheManager } from "../utils/DirectoryCache.js";
 import { handleInitMultipartUpload, handleUploadPart, handleCompleteMultipartUpload, handleAbortMultipartUpload } from "../controllers/multipartUploadController.js";
+import { getLocalTimeString } from "../utils/common.js";
 
 // 创建文件系统路由处理程序
 const fsRoutes = new Hono();
@@ -1038,7 +1039,7 @@ fsRoutes.post("/api/user/fs/presign", apiKeyFileMiddleware, async (c) => {
   }
 });
 
-// 提交预签名URL上传成功 - 管理员版本
+// 提交预签名URL上传完成 - 管理员版本
 fsRoutes.post("/api/admin/fs/presign/commit", authMiddleware, async (c) => {
   try {
     // 获取必要的上下文
@@ -1083,16 +1084,19 @@ fsRoutes.post("/api/admin/fs/presign/commit", authMiddleware, async (c) => {
     // 生成slug（使用文件ID的前8位作为slug）
     const fileSlug = "M-" + fileId.substring(0, 5);
 
+    // 获取当前时间
+    const now = getLocalTimeString();
+
     // 记录文件上传成功
     await db
         .prepare(
             `
       INSERT INTO files (
-        id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
         )
-        .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, adminId)
+        .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, adminId, now, now)
         .run();
 
     // 提取父路径
@@ -1127,7 +1131,7 @@ fsRoutes.post("/api/admin/fs/presign/commit", authMiddleware, async (c) => {
   }
 });
 
-// 提交预签名URL上传成功 - API密钥用户版本
+// 提交预签名URL上传完成 - API密钥用户版本
 fsRoutes.post("/api/user/fs/presign/commit", apiKeyFileMiddleware, async (c) => {
   try {
     // 获取必要的上下文
@@ -1172,16 +1176,19 @@ fsRoutes.post("/api/user/fs/presign/commit", apiKeyFileMiddleware, async (c) => 
     // 生成slug（使用文件ID的前8位作为slug）
     const fileSlug = "M-" + fileId.substring(0, 5);
 
+    // 获取当前时间
+    const now = getLocalTimeString();
+
     // 记录文件上传成功
     await db
         .prepare(
             `
       INSERT INTO files (
-        id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
         )
-        .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, `apikey:${apiKeyId}`)
+        .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, `apikey:${apiKeyId}`, now, now)
         .run();
 
     // 提取父路径
