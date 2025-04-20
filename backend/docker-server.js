@@ -253,6 +253,35 @@ server.use((req, res, next) => {
 
 // 2. 请求体处理中间件
 // ==========================================
+// 处理multipart/form-data请求体的中间件
+server.use((req, res, next) => {
+  if (req.method === "POST" && req.headers["content-type"] && req.headers["content-type"].includes("multipart/form-data")) {
+    logMessage("debug", `检测到multipart/form-data请求: ${req.path}，保存原始请求体`);
+
+    // 对于multipart请求，我们需要保存原始数据
+    const chunks = [];
+
+    req.on("data", (chunk) => {
+      chunks.push(chunk);
+    });
+
+    req.on("end", () => {
+      // 保存原始请求体
+      req.rawBody = Buffer.concat(chunks);
+      logMessage("debug", `multipart请求体已保存，大小: ${req.rawBody.length} 字节`);
+      next();
+    });
+
+    req.on("error", (err) => {
+      logMessage("error", `读取multipart请求体错误:`, { error: err });
+      next(err);
+    });
+  } else {
+    // 非multipart请求，直接传递给下一个中间件
+    next();
+  }
+});
+
 // 处理原始请求体（XML、二进制等）
 server.use(
     express.raw({
@@ -295,6 +324,24 @@ server.use((err, req, res, next) => {
       error: "请求体过大",
       message: `上传内容超过限制 (${err.limit})`,
       maxSize: err.limit,
+    });
+  }
+
+  // 处理multipart/form-data解析错误
+  if (
+      err.message &&
+      (err.message.includes("Unexpected end of form") || err.message.includes("Unexpected end of multipart data") || err.message.includes("Multipart: Boundary not found"))
+  ) {
+    logMessage("error", `Multipart解析错误:`, {
+      method: req.method,
+      path: req.path,
+      contentType: req.headers["content-type"] || "未知",
+      error: err.message,
+    });
+    return res.status(400).json({
+      error: "无效的表单数据",
+      message: "无法解析multipart/form-data请求，请检查表单格式是否正确",
+      detail: err.message,
     });
   }
 
@@ -449,9 +496,14 @@ function createAdaptedRequest(expressReq) {
     // 检查请求体的类型和内容
     let contentType = expressReq.headers["content-type"] || "";
 
+    // 特殊处理multipart/form-data请求
+    if (contentType.includes("multipart/form-data") && expressReq.rawBody) {
+      logMessage("debug", `处理multipart/form-data请求: ${expressReq.path}，使用原始请求体，大小: ${expressReq.rawBody.length} 字节`);
+      // 使用预先保存的原始请求体
+      body = expressReq.rawBody;
+    }
     // 对于WebDAV请求特殊处理
-    const isWebDAVRequest = expressReq.path.startsWith("/dav");
-    if (isWebDAVRequest) {
+    else if (expressReq.path.startsWith("/dav")) {
       // 确认Content-Type字段存在，如果不存在则设置一个默认值
       if (!contentType) {
         if (expressReq.method === "MKCOL") {
@@ -478,7 +530,8 @@ function createAdaptedRequest(expressReq) {
       }
     }
     // 正常处理其他请求类型
-    else {
+    else if (!body) {
+      // 只有在没有设置body的情况下才处理
       // 如果是JSON请求且已经被解析
       if ((contentType.includes("application/json") || contentType.includes("json")) && expressReq.body && typeof expressReq.body === "object") {
         body = JSON.stringify(expressReq.body);
