@@ -10,6 +10,8 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import methodOverride from "method-override";
+import os from "os"; // 添加临时目录支持
+import crypto from "crypto"; // 添加用于生成随机文件名
 
 // 项目依赖
 import { checkAndInitDatabase } from "./src/utils/database.js";
@@ -256,24 +258,57 @@ server.use((req, res, next) => {
 // 处理multipart/form-data请求体的中间件
 server.use((req, res, next) => {
   if (req.method === "POST" && req.headers["content-type"] && req.headers["content-type"].includes("multipart/form-data")) {
-    logMessage("debug", `检测到multipart/form-data请求: ${req.path}，保存原始请求体`);
+    logMessage("debug", `检测到multipart/form-data请求: ${req.path}，使用流式处理和临时文件存储`);
 
-    // 对于multipart请求，我们需要保存原始数据
-    const chunks = [];
+    // 创建随机临时文件名
+    const tempFileName = `upload-${crypto.randomBytes(16).toString("hex")}`;
+    const tempFilePath = path.join(os.tmpdir(), tempFileName);
 
-    req.on("data", (chunk) => {
-      chunks.push(chunk);
-    });
+    // 创建写入流
+    const fileStream = fs.createWriteStream(tempFilePath);
 
-    req.on("end", () => {
-      // 保存原始请求体
-      req.rawBody = Buffer.concat(chunks);
-      logMessage("debug", `multipart请求体已保存，大小: ${req.rawBody.length} 字节`);
+    // 通过管道将请求流导入文件
+    req.pipe(fileStream);
+
+    // 保存临时文件路径，供后续处理使用
+    req.tempFilePath = tempFilePath;
+
+    // 处理文件写入完成
+    fileStream.on("finish", () => {
+      logMessage("debug", `multipart请求数据已保存到临时文件: ${tempFilePath}`);
       next();
     });
 
+    // 处理错误
+    fileStream.on("error", (err) => {
+      logMessage("error", `保存multipart请求数据到临时文件失败:`, { error: err });
+      // 尝试清理失败的临时文件
+      try {
+        fs.unlinkSync(tempFilePath);
+      } catch (cleanupErr) {
+        // 忽略清理错误
+      }
+      next(err);
+    });
+
+    // 处理请求结束，确保资源清理
+    res.on("finish", () => {
+      // 响应结束后清理临时文件
+      if (req.tempFilePath) {
+        logMessage("debug", `请求处理完成，清理临时文件: ${req.tempFilePath}`);
+        try {
+          fs.unlinkSync(req.tempFilePath);
+          req.tempFilePath = null;
+        } catch (cleanupErr) {
+          logMessage("error", `清理临时文件失败:`, { error: cleanupErr, path: req.tempFilePath });
+        }
+      }
+    });
+
+    // 处理错误中断
     req.on("error", (err) => {
-      logMessage("error", `读取multipart请求体错误:`, { error: err });
+      logMessage("error", `multipart请求处理错误:`, { error: err });
+      fileStream.end();
       next(err);
     });
   } else {
@@ -497,10 +532,16 @@ function createAdaptedRequest(expressReq) {
     let contentType = expressReq.headers["content-type"] || "";
 
     // 特殊处理multipart/form-data请求
-    if (contentType.includes("multipart/form-data") && expressReq.rawBody) {
-      logMessage("debug", `处理multipart/form-data请求: ${expressReq.path}，使用原始请求体，大小: ${expressReq.rawBody.length} 字节`);
-      // 使用预先保存的原始请求体
-      body = expressReq.rawBody;
+    if (contentType.includes("multipart/form-data")) {
+      if (expressReq.tempFilePath && fs.existsSync(expressReq.tempFilePath)) {
+        logMessage("debug", `处理multipart/form-data请求: ${expressReq.path}，使用流式读取临时文件: ${expressReq.tempFilePath}`);
+        // 使用流式读取替代一次性加载全部内容到内存
+        body = fs.createReadStream(expressReq.tempFilePath);
+      } else if (expressReq.rawBody) {
+        // 兼容模式 - 如果有rawBody但没有tempFilePath（向后兼容）
+        logMessage("debug", `处理multipart/form-data请求: ${expressReq.path}，使用原始请求体（兼容模式），大小: ${expressReq.rawBody.length} 字节`);
+        body = expressReq.rawBody;
+      }
     }
     // 对于WebDAV请求特殊处理
     else if (expressReq.path.startsWith("/dav")) {
@@ -579,6 +620,8 @@ function createAdaptedRequest(expressReq) {
   // 只有在有请求体时才添加body参数
   if (body !== undefined) {
     requestInit.body = body;
+    // 添加duplex选项以符合Node.js新版本要求
+    requestInit.duplex = "half";
   }
 
   return new Request(url, requestInit);
@@ -662,4 +705,56 @@ server.listen(PORT, "0.0.0.0", () => {
   } catch (error) {
     logMessage("warn", "创建Web.config文件失败:", { message: error.message });
   }
+
+  // 启动内存使用监控
+  startMemoryMonitoring();
 });
+
+/**
+ * 内存使用监控和管理函数
+ * 定期记录内存使用情况并尝试清理
+ */
+function startMemoryMonitoring(interval = 60000) {
+  // 记录内存使用情况
+  const logMemoryUsage = () => {
+    const memUsage = process.memoryUsage();
+
+    logMessage("info", "内存使用情况:", {
+      rss: `${Math.round(memUsage.rss / 1024 / 1024)} MB`, // 常驻集大小
+      heapTotal: `${Math.round(memUsage.heapTotal / 1024 / 1024)} MB`, // 总堆内存
+      heapUsed: `${Math.round(memUsage.heapUsed / 1024 / 1024)} MB`, // 已用堆内存
+      external: `${Math.round(memUsage.external / 1024 / 1024)} MB`, // 外部内存
+      arrayBuffers: memUsage.arrayBuffers ? `${Math.round(memUsage.arrayBuffers / 1024 / 1024)} MB` : "N/A", // Buffer内存
+    });
+
+    // 当内存使用率高于阈值时，尝试手动触发垃圾回收
+    // 增加对外部内存和ArrayBuffers的检查，以便在文件上传后更好地触发内存回收
+    if (
+        global.gc &&
+        (memUsage.heapUsed / memUsage.heapTotal > 0.85 ||
+            memUsage.external > 30 * 1024 * 1024 || // 外部内存超过30MB
+            (memUsage.arrayBuffers && memUsage.arrayBuffers > 50 * 1024 * 1024)) // ArrayBuffers超过50MB
+    ) {
+      logMessage("info", "检测到内存使用较高，尝试手动垃圾回收");
+      global.gc();
+    }
+  };
+
+  // 初始记录
+  logMemoryUsage();
+
+  // 设置定时器定期记录
+  const intervalId = setInterval(() => {
+    logMemoryUsage();
+  }, interval);
+
+  // 防止定时器阻止进程退出
+  process.on("exit", () => {
+    clearInterval(intervalId);
+  });
+
+  return {
+    stop: () => clearInterval(intervalId),
+    logNow: () => logMemoryUsage(),
+  };
+}
