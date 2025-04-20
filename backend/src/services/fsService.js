@@ -12,7 +12,7 @@ import { initializeMultipartUpload } from "./multipartUploadService.js";
 import { S3ProviderTypes } from "../constants/index.js";
 import { directoryCacheManager } from "../utils/DirectoryCache.js";
 import { deleteFileRecordByStoragePath } from "./fileService.js";
-import { generateFileId } from "../utils/common.js";
+import { generateFileId, getLocalTimeString } from "../utils/common.js";
 
 /**
  * 规范化路径格式
@@ -819,13 +819,16 @@ export async function uploadFile(db, path, file, userId, userType, encryptionSec
             // 生成slug（使用文件ID的前5位作为slug）
             const fileSlug = "M-" + fileId.substring(0, 5);
 
+            // 获取当前时间
+            const now = getLocalTimeString();
+
             // 记录文件信息到数据库
             await db
                 .prepare(
                     `
               INSERT INTO files (
-                id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `
                 )
                 .bind(
@@ -838,7 +841,9 @@ export async function uploadFile(db, path, file, userId, userType, encryptionSec
                     s3Config.id,
                     fileSlug,
                     result.ETag ? result.ETag.replace(/"/g, "") : null,
-                    `${userType}:${userId}`
+                    `${userType}:${userId}`,
+                    now,
+                    now
                 )
                 .run();
 
