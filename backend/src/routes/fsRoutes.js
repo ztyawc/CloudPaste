@@ -11,7 +11,7 @@ import { HTTPException } from "hono/http-exception";
 import { listDirectory, getFileInfo, downloadFile, createDirectory, uploadFile, removeItem, renameItem, previewFile, batchRemoveItems } from "../services/fsService.js";
 import { findMountPointByPath } from "../webdav/utils/webdavUtils.js";
 import { generatePresignedPutUrl, buildS3Url } from "../utils/s3Utils.js";
-import { directoryCacheManager } from "../utils/DirectoryCache.js";
+import { directoryCacheManager, clearCacheForFilePath } from "../utils/DirectoryCache.js";
 import { handleInitMultipartUpload, handleUploadPart, handleCompleteMultipartUpload, handleAbortMultipartUpload } from "../controllers/multipartUploadController.js";
 import { getLocalTimeString } from "../utils/common.js";
 
@@ -1110,6 +1110,15 @@ fsRoutes.post("/api/admin/fs/presign/commit", authMiddleware, async (c) => {
       console.warn(`跳过缓存刷新，参数不完整: mountId=${mountId}, parentPath=${parentPath}`);
     }
 
+    // 调用clearCacheForFilePath函数，更彻底地清除文件相关缓存
+    try {
+      await clearCacheForFilePath(db, s3Path, s3ConfigId);
+      console.log(`已调用clearCacheForFilePath清除文件相关缓存 - 路径=${s3Path}, S3配置ID=${s3ConfigId}`);
+    } catch (cacheError) {
+      // 不让缓存清除错误影响上传流程
+      console.warn(`清除文件缓存时出错: ${cacheError.message}`);
+    }
+
     return c.json({
       code: ApiStatus.SUCCESS,
       message: "文件上传成功",
@@ -1200,6 +1209,15 @@ fsRoutes.post("/api/user/fs/presign/commit", apiKeyFileMiddleware, async (c) => 
       console.log(`缓存已刷新（包含所有父路径）：挂载点=${mountId}, 路径=${parentPath}, 清理了${invalidatedCount}个缓存条目`);
     } else {
       console.warn(`跳过缓存刷新，参数不完整: mountId=${mountId}, parentPath=${parentPath}`);
+    }
+
+    // 调用clearCacheForFilePath函数，更彻底地清除文件相关缓存
+    try {
+      await clearCacheForFilePath(db, s3Path, s3ConfigId);
+      console.log(`已调用clearCacheForFilePath清除文件相关缓存 - 路径=${s3Path}, S3配置ID=${s3ConfigId}`);
+    } catch (cacheError) {
+      // 不让缓存清除错误影响上传流程
+      console.warn(`清除文件缓存时出错: ${cacheError.message}`);
     }
 
     return c.json({
