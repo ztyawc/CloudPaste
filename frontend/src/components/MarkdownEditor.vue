@@ -679,8 +679,8 @@ const initEditor = () => {
     upload: {
       accept: "image/*,.zip,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx",
       token: "",
-      url: "/api/upload",
-      linkToImgUrl: "/api/fetch?url=",
+      // url: "/api/upload",
+      // linkToImgUrl: "/api/fetch?url=",
       filename(name) {
         return name.replace(/\W/g, "");
       },
