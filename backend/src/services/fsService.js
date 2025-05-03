@@ -579,8 +579,21 @@ export async function previewFile(db, path, userId, userType, encryptionSecret) 
         // 更新最后使用时间
         await updateMountLastUsed(db, mount.id);
 
-        // 获取文件内容
+        // 文件名处理
+        const fileName = path.split("/").filter(Boolean).pop() || "file";
+        const contentDisposition = `inline; filename="${encodeURIComponent(fileName)}"`;
+
         try {
+          // 首先使用HEAD请求检查对象存在性和获取元数据
+          const headParams = {
+            Bucket: s3Config.bucket_name,
+            Key: s3SubPath,
+          };
+
+          const headCommand = new HeadObjectCommand(headParams);
+          const headResponse = await s3Client.send(headCommand);
+
+          // 在确认对象存在后再获取内容
           const getParams = {
             Bucket: s3Config.bucket_name,
             Key: s3SubPath,
@@ -589,17 +602,12 @@ export async function previewFile(db, path, userId, userType, encryptionSecret) 
           const getCommand = new GetObjectCommand(getParams);
           const getResponse = await s3Client.send(getCommand);
 
-          // 文件名处理
-          const fileName = path.split("/").filter(Boolean).pop() || "file";
-          // 设置为inline用于预览而不是下载
-          const contentDisposition = `inline; filename="${encodeURIComponent(fileName)}"`;
-
           // 构建响应头
           const headers = {
-            "Content-Type": getResponse.ContentType || "application/octet-stream",
+            "Content-Type": headResponse.ContentType || getResponse.ContentType || "application/octet-stream",
             "Content-Disposition": contentDisposition,
-            "Content-Length": String(getResponse.ContentLength || 0),
-            "Last-Modified": getResponse.LastModified ? getResponse.LastModified.toUTCString() : new Date().toUTCString(),
+            "Content-Length": String(headResponse.ContentLength || getResponse.ContentLength || 0),
+            "Last-Modified": (headResponse.LastModified || getResponse.LastModified || new Date()).toUTCString(),
             "Cache-Control": "private, max-age=0",
           };
 
