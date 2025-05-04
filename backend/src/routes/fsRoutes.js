@@ -181,16 +181,7 @@ fsRoutes.get("/api/admin/fs/download", async (c) => {
   }
 
   try {
-    // 直接返回downloadFile的响应，文件内容会直接从服务器流式传输
-    const response = await downloadFile(db, path, adminId, "admin", c.env.ENCRYPTION_SECRET);
-
-    // 替换Access-Control-Allow-Origin头部为实际的Origin
-    const origin = c.req.header("Origin");
-    if (origin) {
-      response.headers.set("Access-Control-Allow-Origin", origin);
-    }
-
-    return response;
+    return await downloadFile(db, path, adminId, "admin", c.env.ENCRYPTION_SECRET);
   } catch (error) {
     // 确保即使发生错误，也添加CORS头部
     setCorsHeaders(c);
@@ -216,16 +207,7 @@ fsRoutes.get("/api/admin/fs/preview", async (c) => {
   }
 
   try {
-    // 直接返回previewFile的响应，文件内容会直接从服务器流式传输
-    const response = await previewFile(db, path, adminId, "admin", c.env.ENCRYPTION_SECRET);
-
-    // 替换Access-Control-Allow-Origin头部为实际的Origin
-    const origin = c.req.header("Origin");
-    if (origin) {
-      response.headers.set("Access-Control-Allow-Origin", origin);
-    }
-
-    return response;
+    return await previewFile(db, path, adminId, "admin", c.env.ENCRYPTION_SECRET);
   } catch (error) {
     // 确保即使发生错误，也添加CORS头部
     setCorsHeaders(c);
@@ -251,16 +233,7 @@ fsRoutes.get("/api/user/fs/download", async (c) => {
   }
 
   try {
-    // 直接返回downloadFile的响应，文件内容会直接从服务器流式传输
-    const response = await downloadFile(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
-
-    // 替换Access-Control-Allow-Origin头部为实际的Origin
-    const origin = c.req.header("Origin");
-    if (origin) {
-      response.headers.set("Access-Control-Allow-Origin", origin);
-    }
-
-    return response;
+    return await downloadFile(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
   } catch (error) {
     // 确保即使发生错误，也添加CORS头部
     setCorsHeaders(c);
@@ -286,16 +259,7 @@ fsRoutes.get("/api/user/fs/preview", async (c) => {
   }
 
   try {
-    // 直接返回previewFile的响应，文件内容会直接从服务器流式传输
-    const response = await previewFile(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
-
-    // 替换Access-Control-Allow-Origin头部为实际的Origin
-    const origin = c.req.header("Origin");
-    if (origin) {
-      response.headers.set("Access-Control-Allow-Origin", origin);
-    }
-
-    return response;
+    return await previewFile(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
   } catch (error) {
     // 确保即使发生错误，也添加CORS头部
     setCorsHeaders(c);
