@@ -80,7 +80,7 @@
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Markdown预览</span>
         </div>
         <div class="p-4 overflow-auto flex-grow" style="max-height: calc(100vh - 350px); min-height: 200px">
-          <iframe v-if="processedPreviewUrl" :src="processedPreviewUrl" frameborder="0" class="w-full h-full"></iframe>
+          <iframe v-if="processedPreviewUrl" :src="processedPreviewUrl" frameborder="0" class="w-full h-[calc(100vh-400px)] min-h-[200px]"></iframe>
           <pre v-else class="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 font-mono break-words">{{ fileContent }}</pre>
         </div>
       </div>
