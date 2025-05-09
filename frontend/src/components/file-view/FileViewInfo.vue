@@ -31,7 +31,7 @@
     </div>
 
     <!-- 文件预览区域 -->
-    <div v-if="fileUrls.previewUrl" class="file-preview mb-6 flex-grow flex flex-col">
+    <div v-if="fileUrls.previewUrl" class="file-preview mb-6 flex-grow flex flex-col justify-center items-center">
       <!-- 图片预览 -->
       <div v-if="isImage" class="image-preview rounded-lg overflow-hidden mb-2 flex justify-center">
         <img :src="processedPreviewUrl" :alt="fileInfo.filename" class="max-w-full max-h-[calc(100vh-350px)] h-auto object-contain" />
@@ -46,7 +46,7 @@
       </div>
 
       <!-- 音频预览 -->
-      <div v-else-if="isAudio" class="audio-preview rounded-lg p-4 mb-2 bg-gray-100 dark:bg-gray-700">
+      <div v-else-if="isAudio" class="audio-preview rounded-lg p-4 mb-2 bg-gray-100 dark:bg-gray-700 w-full">
         <audio controls class="w-full">
           <source :src="processedPreviewUrl" :type="fileInfo.mimetype" />
           您的浏览器不支持音频标签
@@ -54,12 +54,15 @@
       </div>
 
       <!-- PDF预览 -->
-      <div v-else-if="isPdf" class="pdf-preview rounded-lg overflow-hidden mb-2 flex-grow">
+      <div v-else-if="isPdf" class="pdf-preview rounded-lg overflow-hidden mb-2 flex-grow w-full">
         <iframe :src="processedPreviewUrl" frameborder="0" class="w-full h-[calc(100vh-350px)] min-h-[300px]"></iframe>
       </div>
 
       <!-- 文本文件预览 -->
-      <div v-else-if="isText" class="text-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex-grow flex flex-col">
+      <div
+          v-else-if="isText"
+          class="text-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex-grow flex flex-col w-full"
+      >
         <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">文本文件预览</span>
         </div>
@@ -71,7 +74,7 @@
       <!-- Markdown预览 -->
       <div
           v-else-if="isMarkdown"
-          class="markdown-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex-grow flex flex-col"
+          class="markdown-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex-grow flex flex-col w-full"
       >
         <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Markdown预览</span>
@@ -83,7 +86,7 @@
       </div>
 
       <!-- HTML预览 -->
-      <div v-else-if="isHtml" class="html-preview rounded-lg overflow-hidden mb-2 flex-grow flex flex-col">
+      <div v-else-if="isHtml" class="html-preview rounded-lg overflow-hidden mb-2 flex-grow flex flex-col w-full">
         <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">HTML预览</span>
           <div>
@@ -104,7 +107,10 @@
       </div>
 
       <!-- 代码文件预览 -->
-      <div v-else-if="isCode" class="code-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex-grow flex flex-col">
+      <div
+          v-else-if="isCode"
+          class="code-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex-grow flex flex-col w-full"
+      >
         <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">代码预览</span>
           <span class="text-xs bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded text-gray-700 dark:text-gray-300">{{ getCodeLanguage }}</span>
@@ -117,7 +123,7 @@
       <!-- 配置文件预览 -->
       <div
           v-else-if="isConfig"
-          class="config-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex-grow flex flex-col"
+          class="config-preview rounded-lg overflow-hidden mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex-grow flex flex-col w-full"
       >
         <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">配置文件预览</span>
@@ -129,7 +135,7 @@
       </div>
 
       <!-- Office文档预览 -->
-      <div v-else-if="isOfficeFile" class="office-preview rounded-lg overflow-hidden mb-2 flex-grow flex flex-col">
+      <div v-else-if="isOfficeFile" class="office-preview rounded-lg overflow-hidden mb-2 flex-grow flex flex-col w-full">
         <div class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
             {{ isOfficeDocument ? "Word文档预览" : isSpreadsheet ? "Excel表格预览" : "PowerPoint演示文稿预览" }}
@@ -199,7 +205,7 @@
       </div>
 
       <!-- 其他文件类型 -->
-      <div v-else class="generic-preview text-center py-6">
+      <div v-else class="generic-preview text-center py-6 w-full self-center flex flex-col items-center justify-center" style="min-height: 200px">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto mb-3" :class="iconClass" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path
               stroke-linecap="round"
