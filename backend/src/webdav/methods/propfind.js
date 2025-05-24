@@ -387,6 +387,9 @@ async function buildPropfindResponse(c, s3Client, bucketName, prefix, depth, req
     prefix = prefix.substring(1);
   }
 
+  // 初始化计数器变量
+  let itemCount = 0;
+
   try {
     // 先尝试以当前路径为目录列出内容
     const listParams = {
@@ -440,7 +443,6 @@ async function buildPropfindResponse(c, s3Client, bucketName, prefix, depth, req
     // 如果深度不是0，则加入子项
     if (depth !== "0") {
       // 跟踪已处理的项目数
-      let itemCount = 0;
       let truncated = false;
 
       // 处理目录（CommonPrefixes）
@@ -715,7 +717,7 @@ async function buildPropfindResponse(c, s3Client, bucketName, prefix, depth, req
     // 添加额外的响应头，指示是否有分页和项目数量
     const responseHeaders = {
       "Content-Type": "application/xml; charset=utf-8",
-      "X-WebDAV-Item-Count": String(itemCount || 0),
+      "X-WebDAV-Item-Count": String(typeof itemCount !== "undefined" ? itemCount : 0),
     };
 
     return new Response(xmlBody, {
