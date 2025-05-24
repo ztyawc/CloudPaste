@@ -218,4 +218,5 @@ export async function handleGet(c, path, userId, userType, db) {
     // 使用统一的错误处理
     return handleWebDAVError("GET", error);
   }
+
 }
