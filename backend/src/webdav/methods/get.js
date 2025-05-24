@@ -169,6 +169,9 @@ export async function handleGet(c, path, userId, userType, db) {
 
       // 处理Range请求
       const rangeHeader = c.req.header("Range");
+      let isRangeRequest = false;
+      let rangeStart, rangeEnd;
+
       if (rangeHeader) {
         try {
           // 严格验证Range头格式
@@ -184,24 +187,29 @@ export async function handleGet(c, path, userId, userType, db) {
               // 如果指定了end，确保end也是有效的数字且大于等于start
               if (end !== undefined) {
                 if (!isNaN(end) && end >= start) {
-                  getParams.Range = `bytes=${start}-${end}`;
-                  console.log(`GET请求: 有效的Range请求 ${getParams.Range}`);
+                  // 不再设置getParams.Range，而是记录范围信息
+                  isRangeRequest = true;
+                  rangeStart = start;
+                  rangeEnd = end;
+                  console.log(`GET请求: 有效的Range请求 bytes=${start}-${end}，将在获取响应后处理`);
                 } else {
-                  console.warn(`GET请求: 无效的Range结束位置 ${end}, 忽略Range头`);
+                  console.warn(`GET请求: 无效的Range结束位置 ${end}, 忽略Range请求`);
                 }
               } else {
                 // 只有start，没有end
-                getParams.Range = `bytes=${start}-`;
-                console.log(`GET请求: 有效的开放Range请求 ${getParams.Range}`);
+                isRangeRequest = true;
+                rangeStart = start;
+                rangeEnd = undefined;
+                console.log(`GET请求: 有效的开放Range请求 bytes=${start}-，将在获取响应后处理`);
               }
             } else {
-              console.warn(`GET请求: 无效的Range起始位置 ${start}, 忽略Range头`);
+              console.warn(`GET请求: 无效的Range起始位置 ${start}, 忽略Range请求`);
             }
           } else {
-            console.warn(`GET请求: Range头格式不符合要求: ${rangeHeader}, 忽略Range头`);
+            console.warn(`GET请求: Range头格式不符合要求: ${rangeHeader}, 忽略Range请求`);
           }
         } catch (rangeError) {
-          console.warn(`GET请求: 处理Range头时出错: ${rangeError.message}, 忽略Range头`);
+          console.warn(`GET请求: 处理Range头时出错: ${rangeError.message}, 忽略Range请求`);
         }
       }
 
@@ -221,17 +229,52 @@ export async function handleGet(c, path, userId, userType, db) {
         "Cache-Control": "max-age=3600",
       };
 
-      // 处理分片响应
-      if (getResponse.ContentRange) {
-        headers["Content-Range"] = getResponse.ContentRange;
-        return new Response(getResponse.Body, {
-          status: 206, // Partial Content
-          headers,
-        });
+      // 获取完整响应体
+      let responseBody = getResponse.Body;
+
+      // 如果是范围请求，手动处理响应体的切片
+      if (isRangeRequest && responseBody) {
+        try {
+          // 获取完整内容长度
+          const totalLength = parseInt(getResponse.ContentLength || "0", 10);
+
+          if (totalLength > 0) {
+            // 计算实际范围
+            const start = rangeStart;
+            const end = rangeEnd !== undefined ? Math.min(rangeEnd, totalLength - 1) : totalLength - 1;
+
+            if (start <= end && start < totalLength) {
+              // 将响应体转换为ArrayBuffer以便切片
+              const arrayBuffer = await getResponse.Body.arrayBuffer();
+              const slicedBuffer = arrayBuffer.slice(start, end + 1);
+
+              // 更新响应头
+              const contentLength = slicedBuffer.byteLength;
+              headers["Content-Length"] = String(contentLength);
+              headers["Content-Range"] = `bytes ${start}-${end}/${totalLength}`;
+
+              console.log(`GET请求: 手动处理Range请求，返回 ${start}-${end}/${totalLength} (${contentLength} 字节)`);
+
+              // 创建新的响应体
+              responseBody = new Uint8Array(slicedBuffer);
+
+              // 返回206 Partial Content响应
+              return new Response(responseBody, {
+                status: 206, // Partial Content
+                headers,
+              });
+            } else {
+              console.warn(`GET请求: 请求范围 ${start}-${end} 超出有效范围 0-${totalLength - 1}，返回完整内容`);
+            }
+          }
+        } catch (rangeError) {
+          console.error(`GET请求: 处理Range响应时出错:`, rangeError);
+          // 出错时回退到返回完整内容
+        }
       }
 
-      // 处理完整响应
-      return new Response(getResponse.Body, {
+      // 处理完整响应或Range处理失败时的回退
+      return new Response(responseBody, {
         status: 200,
         headers,
       });
