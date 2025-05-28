@@ -346,13 +346,13 @@ export async function clearCacheForFilePath(db, storagePath, s3ConfigId) {
 
     // 获取与S3配置相关的挂载点
     const mounts = await db
-        .prepare(
-            `SELECT m.id, m.mount_path
+      .prepare(
+        `SELECT m.id, m.mount_path
          FROM storage_mounts m
          WHERE m.storage_type = 'S3' AND m.storage_config_id = ?`
-        )
-        .bind(s3ConfigId)
-        .all();
+      )
+      .bind(s3ConfigId)
+      .all();
 
     if (!mounts || !mounts.results || mounts.results.length === 0) {
       console.log(`没有找到与S3配置 ${s3ConfigId} 相关的挂载点，不需要清除缓存`);
