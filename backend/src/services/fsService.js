@@ -6,14 +6,36 @@ import { HTTPException } from "hono/http-exception";
 import { ApiStatus } from "../constants/index.js";
 import { findMountPointByPath, normalizeS3SubPath, updateMountLastUsed, checkDirectoryExists } from "../webdav/utils/webdavUtils.js";
 import { getMountsByAdmin, getMountsByApiKey } from "./storageMountService.js";
-import { createS3Client, buildS3Url } from "../utils/s3Utils.js";
-import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand, DeleteObjectCommand, CopyObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import {
+  createS3Client,
+  buildS3Url,
+  generatePresignedUrl,
+  generatePresignedPutUrl,
+  getDirectoryPresignedUrls,
+  checkS3ObjectExists,
+  getS3ObjectMetadata,
+  listS3Directory,
+} from "../utils/s3Utils.js";
+import {
+  S3Client,
+  ListObjectsV2Command,
+  GetObjectCommand,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  CopyObjectCommand,
+  HeadObjectCommand,
+  CreateMultipartUploadCommand,
+  UploadPartCommand,
+  CompleteMultipartUploadCommand,
+  AbortMultipartUploadCommand,
+} from "@aws-sdk/client-s3";
 import { initializeMultipartUpload } from "./multipartUploadService.js";
 import { S3ProviderTypes } from "../constants/index.js";
-import { directoryCacheManager } from "../utils/DirectoryCache.js";
+import { directoryCacheManager, clearCacheForPath } from "../utils/DirectoryCache.js";
 import { deleteFileRecordByStoragePath } from "./fileService.js";
 import { generateFileId, getLocalTimeString } from "../utils/common.js";
 import { getMimeTypeFromFilename, getMimeTypeAndGroupFromFile, getContentTypeAndDisposition, MIME_GROUPS } from "../utils/fileUtils.js";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 /**
  * 规范化路径格式
@@ -708,9 +730,8 @@ export async function createDirectory(db, path, userId, userType, encryptionSecr
             // 清除父目录的缓存，因为目录内容已变更
             if (subPath !== "/") {
               const parentSubPath = subPath.substring(0, subPath.lastIndexOf("/", subPath.length - 2) + 1);
-              // 修改：使用invalidatePathAndAncestors清理父路径及所有祖先路径的缓存
-              const invalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mount.id, parentSubPath);
-              console.log(`创建目录后缓存已刷新（包含所有父路径）：挂载点=${mount.id}, 路径=${parentSubPath}, 清理了${invalidatedCount}个缓存条目`);
+              // 修改：清除父路径及所有祖先路径的缓存
+              clearCacheForPath(mount.id, parentSubPath, false, "创建目录");
             }
 
             return;
@@ -870,11 +891,10 @@ export async function uploadFile(db, path, file, userId, userType, encryptionSec
             // 清除父目录缓存
             if (subPath !== "/" && subPath.includes("/")) {
               const parentSubPath = subPath.substring(0, subPath.lastIndexOf("/") + 1);
-              const invalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mount.id, parentSubPath);
-              console.log(`上传文件后缓存已刷新（包含所有父路径）：挂载点=${mount.id}, 路径=${parentSubPath}, 清理了${invalidatedCount}个缓存条目`);
+              clearCacheForPath(mount.id, parentSubPath, false, "上传文件");
             } else {
               // 如果是根目录下的文件，清除根目录缓存
-              directoryCacheManager.invalidate(mount.id, "/");
+              clearCacheForPath(mount.id, "/", false, "上传文件");
             }
 
             // 构建返回结果
@@ -943,7 +963,7 @@ export async function removeItem(db, path, userId, userType, encryptionSecret) {
           await deleteDirectory(s3Client, s3Config.bucket_name, s3SubPath, db, mount.storage_config_id);
 
           // 清除该目录的缓存
-          directoryCacheManager.invalidate(mount.id, subPath);
+          clearCacheForPath(mount.id, subPath, true, "删除目录");
         } else {
           // 对于文件，直接删除
           const deleteParams = {
@@ -979,12 +999,11 @@ export async function removeItem(db, path, userId, userType, encryptionSecret) {
         // 清除父目录缓存
         if (subPath !== "/" && subPath.includes("/")) {
           const parentSubPath = subPath.substring(0, subPath.lastIndexOf("/", isDirectory ? subPath.length - 2 : subPath.length - 1) + 1);
-          // 修改：使用invalidatePathAndAncestors清理父路径及所有祖先路径的缓存
-          const invalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mount.id, parentSubPath);
-          console.log(`删除文件后缓存已刷新（包含所有父路径）：挂载点=${mount.id}, 路径=${parentSubPath}, 清理了${invalidatedCount}个缓存条目`);
+          // 清除父路径及所有祖先路径的缓存
+          clearCacheForPath(mount.id, parentSubPath, false, "删除文件或目录");
         } else if (!isDirectory) {
           // 如果删除的是根目录下的文件，清除根目录缓存
-          directoryCacheManager.invalidate(mount.id, "/");
+          clearCacheForPath(mount.id, "/", false, "删除文件");
         }
       },
       "删除文件或目录",
@@ -1163,9 +1182,9 @@ export async function renameItem(db, oldPath, newPath, userId, userType, encrypt
           await renameDirectory(s3Client, s3Config.bucket_name, s3OldPath, s3NewPath);
 
           // 清除重命名的目录的缓存
-          directoryCacheManager.invalidate(mount.id, oldSubPath);
+          clearCacheForPath(mount.id, oldSubPath, true, "重命名目录-源");
           // 清除目标目录可能存在的缓存
-          directoryCacheManager.invalidate(mount.id, newSubPath);
+          clearCacheForPath(mount.id, newSubPath, true, "重命名目录-目标");
         } else {
           // 对于文件，使用复制然后删除
           // 复制对象
@@ -1194,23 +1213,21 @@ export async function renameItem(db, oldPath, newPath, userId, userType, encrypt
         // 清除源文件/目录所在目录的缓存
         if (oldSubPath !== "/" && oldSubPath.includes("/")) {
           const oldParentSubPath = oldSubPath.substring(0, oldSubPath.lastIndexOf("/", oldIsDirectory ? oldSubPath.length - 2 : oldSubPath.length - 1) + 1);
-          // 修改：使用invalidatePathAndAncestors清理父路径及所有祖先路径的缓存
-          const oldInvalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mount.id, oldParentSubPath);
-          console.log(`重命名文件/目录后源路径缓存已刷新（包含所有父路径）：挂载点=${mount.id}, 路径=${oldParentSubPath}, 清理了${oldInvalidatedCount}个缓存条目`);
+          // 清除父路径及所有祖先路径的缓存
+          clearCacheForPath(mount.id, oldParentSubPath, false, "重命名-源路径");
         } else if (!oldIsDirectory) {
           // 如果是根目录下的文件，清除根目录缓存
-          directoryCacheManager.invalidate(mount.id, "/");
+          clearCacheForPath(mount.id, "/", false, "重命名-源根目录");
         }
 
         // 清除目标文件/目录所在目录的缓存
         if (newSubPath !== "/" && newSubPath.includes("/")) {
           const newParentSubPath = newSubPath.substring(0, newSubPath.lastIndexOf("/", newIsDirectory ? newSubPath.length - 2 : newSubPath.length - 1) + 1);
-          // 修改：使用invalidatePathAndAncestors清理父路径及所有祖先路径的缓存
-          const newInvalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mount.id, newParentSubPath);
-          console.log(`重命名文件/目录后目标路径缓存已刷新（包含所有父路径）：挂载点=${mount.id}, 路径=${newParentSubPath}, 清理了${newInvalidatedCount}个缓存条目`);
+          // 清除父路径及所有祖先路径的缓存
+          clearCacheForPath(mount.id, newParentSubPath, false, "重命名-目标路径");
         } else if (!newIsDirectory) {
           // 如果是根目录下的文件，清除根目录缓存
-          directoryCacheManager.invalidate(mount.id, "/");
+          clearCacheForPath(mount.id, "/", false, "重命名-目标根目录");
         }
       },
       "重命名文件或目录",
@@ -1612,8 +1629,10 @@ export async function updateFile(db, path, content, userId, userType, encryption
             // 清除父目录缓存
             if (subPath !== "/" && subPath.includes("/")) {
               const parentSubPath = subPath.substring(0, subPath.lastIndexOf("/") + 1);
-              const invalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mount.id, parentSubPath);
-              console.log(`更新文件后缓存已刷新（包含所有父路径）：挂载点=${mount.id}, 路径=${parentSubPath}, 清理了${invalidatedCount}个缓存条目`);
+              clearCacheForPath(mount.id, parentSubPath, false, "更新文件");
+            } else {
+              // 如果是根目录下的文件，清除根目录缓存
+              clearCacheForPath(mount.id, "/", false, "更新文件");
             }
           }
 
@@ -1653,5 +1672,765 @@ export async function updateFile(db, path, content, userId, userType, encryption
       },
       "更新文件",
       "更新文件失败"
+  );
+}
+
+/**
+ * 复制文件或目录
+ * @param {D1Database} db - D1数据库实例
+ * @param {string} sourcePath - 源路径
+ * @param {string} targetPath - 目标路径
+ * @param {string} userId - 用户ID
+ * @param {string} userType - 用户类型 (admin 或 apiKey)
+ * @param {string} encryptionSecret - 加密密钥
+ * @param {boolean} skipExisting - 是否跳过已存在的文件，默认为true
+ * @returns {Promise<Object>} 复制结果
+ */
+export async function copyItem(db, sourcePath, targetPath, userId, userType, encryptionSecret, skipExisting = true) {
+  return handleFsError(
+      async () => {
+        // 检查源路径和目标路径不能相同
+        if (sourcePath === targetPath) {
+          throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "源路径和目标路径不能相同" });
+        }
+
+        // 检查路径类型 (都是文件或都是目录)
+        const sourceIsDirectory = sourcePath.endsWith("/");
+        let targetIsDirectory = targetPath.endsWith("/");
+
+        // 如果源是目录但目标不是目录格式，自动添加斜杠
+        if (sourceIsDirectory && !targetIsDirectory) {
+          targetPath = targetPath + "/";
+          targetIsDirectory = true;
+        }
+
+        // 对于文件复制，确保目标路径也是文件路径格式
+        if (!sourceIsDirectory && targetIsDirectory) {
+          throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "复制文件时，目标路径不能是目录格式" });
+        }
+
+        // 查找源路径的挂载点
+        const sourceMountResult = await findMountPointByPath(db, sourcePath, userId, userType);
+
+        // 处理错误情况
+        if (sourceMountResult.error) {
+          throw new HTTPException(sourceMountResult.error.status, { message: sourceMountResult.error.message });
+        }
+
+        // 查找目标路径的挂载点
+        const targetMountResult = await findMountPointByPath(db, targetPath, userId, userType);
+
+        // 处理错误情况
+        if (targetMountResult.error) {
+          throw new HTTPException(targetMountResult.error.status, { message: targetMountResult.error.message });
+        }
+
+        // 检查是否为跨存储复制
+        if (sourceMountResult.mount.id !== targetMountResult.mount.id) {
+          // 判断两个挂载点是否都是S3类型
+          if (sourceMountResult.mount.storage_type === "S3" && targetMountResult.mount.storage_type === "S3") {
+            // 调用跨存储复制处理函数
+            return await handleCrossStorageCopy(db, sourcePath, targetPath, userId, userType, encryptionSecret);
+          } else {
+            throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "跨存储复制仅支持S3类型存储" });
+          }
+        }
+
+        // 检查源挂载点和目标挂载点的存储类型是否为S3
+        if (sourceMountResult.mount.storage_type !== "S3") {
+          throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "只支持S3类型存储的复制操作" });
+        }
+
+        const mount = sourceMountResult.mount;
+        const sourceSubPath = sourceMountResult.subPath;
+        const targetSubPath = targetMountResult.subPath;
+
+        // 获取S3配置
+        const s3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(mount.storage_config_id).first();
+        if (!s3Config) {
+          throw new HTTPException(ApiStatus.NOT_FOUND, { message: "存储配置不存在" });
+        }
+
+        // 创建S3客户端
+        const s3Client = await createS3Client(s3Config, encryptionSecret);
+
+        // 规范化S3子路径
+        const s3SourcePath = normalizeS3SubPath(sourceSubPath, s3Config, sourceIsDirectory);
+        const s3TargetPath = normalizeS3SubPath(targetSubPath, s3Config, targetIsDirectory);
+
+        // 检查源路径是否存在
+        try {
+          const sourceExists = await checkS3ObjectExists(s3Client, s3Config.bucket_name, s3SourcePath);
+          if (!sourceExists) {
+            // 如果是目录，尝试列出目录内容确认存在性
+            if (sourceIsDirectory) {
+              const listResponse = await listS3Directory(s3Client, s3Config.bucket_name, s3SourcePath);
+
+              // 如果没有内容，说明目录不存在或为空
+              if (!listResponse.Contents || listResponse.Contents.length === 0) {
+                throw new HTTPException(ApiStatus.NOT_FOUND, { message: "源路径不存在或为空目录" });
+              }
+            } else {
+              throw new HTTPException(ApiStatus.NOT_FOUND, { message: "源文件不存在" });
+            }
+          }
+        } catch (error) {
+          if (error instanceof HTTPException) {
+            throw error;
+          }
+          throw new HTTPException(ApiStatus.INTERNAL_ERROR, { message: "检查源路径存在性失败: " + error.message });
+        }
+
+        // 检查目标父目录是否存在（对于文件复制或目录创建）
+        if (s3TargetPath.includes("/")) {
+          let parentPath;
+          if (targetIsDirectory) {
+            // 对于目录，获取其父目录
+            parentPath = s3TargetPath.substring(0, s3TargetPath.lastIndexOf("/", s3TargetPath.length - 2) + 1);
+          } else {
+            // 对于文件，获取其所在目录
+            parentPath = s3TargetPath.substring(0, s3TargetPath.lastIndexOf("/") + 1);
+          }
+
+          // 添加验证：确保parentPath不为空
+          if (!parentPath || parentPath.trim() === "") {
+            // 目标父目录路径为空，假定为根目录，跳过创建步骤
+          } else {
+            const parentExists = await checkDirectoryExists(s3Client, s3Config.bucket_name, parentPath);
+
+            if (!parentExists) {
+              // 自动创建父目录而不是抛出错误
+              console.log(`复制操作: 正在创建目标父目录 "${parentPath}"`);
+
+              try {
+                // 创建一个空对象作为目录标记
+                const createDirParams = {
+                  Bucket: s3Config.bucket_name,
+                  Key: parentPath,
+                  Body: "", // 空内容
+                  ContentType: "application/x-directory", // 目录内容类型
+                };
+
+                const createDirCommand = new PutObjectCommand(createDirParams);
+                await s3Client.send(createDirCommand);
+              } catch (dirError) {
+                console.error(`复制操作: 创建目标父目录 "${parentPath}" 失败:`, dirError);
+                // 如果创建目录失败，才抛出错误
+                throw new HTTPException(ApiStatus.CONFLICT, { message: `无法创建目标父目录: ${dirError.message}` });
+              }
+            }
+          }
+        }
+
+        let result = {};
+
+        // 根据类型处理复制
+        if (sourceIsDirectory) {
+          // 复制目录
+          result = await copyDirectory(s3Client, s3Config.bucket_name, s3SourcePath, s3TargetPath, skipExisting);
+        } else {
+          // 复制文件
+          // 首先检查目标文件是否已存在
+          let targetExists = false;
+          try {
+            targetExists = await checkS3ObjectExists(s3Client, s3Config.bucket_name, s3TargetPath);
+          } catch (error) {
+            // 如果不是存在性检查的错误，则抛出
+            if (!(error instanceof HTTPException)) {
+              throw error;
+            }
+          }
+
+          // 如果目标已存在且设置为跳过已存在文件，则返回跳过信息
+          if (targetExists && skipExisting) {
+            result = {
+              success: true,
+              skipped: true,
+              sourcePath: sourcePath,
+              targetPath: targetPath,
+              message: "目标文件已存在，已跳过",
+            };
+          } else {
+            // 复制文件
+            const copyParams = {
+              Bucket: s3Config.bucket_name,
+              CopySource: encodeURIComponent(s3Config.bucket_name + "/" + s3SourcePath),
+              Key: s3TargetPath,
+            };
+
+            const copyCommand = new CopyObjectCommand(copyParams);
+            await s3Client.send(copyCommand);
+
+            result = {
+              success: true,
+              skipped: false,
+              sourcePath: sourcePath,
+              targetPath: targetPath,
+              message: "文件复制成功",
+            };
+          }
+        }
+
+        // 更新最后使用时间
+        await updateMountLastUsed(db, mount.id);
+
+        // 清除目标路径所在目录的缓存
+        if (targetSubPath !== "/" && targetSubPath.includes("/")) {
+          let parentSubPath;
+          if (targetIsDirectory) {
+            // 对于目录，清除其父目录缓存
+            parentSubPath = targetSubPath.substring(0, targetSubPath.lastIndexOf("/", targetSubPath.length - 2) + 1);
+          } else {
+            // 对于文件，清除其所在目录缓存
+            parentSubPath = targetSubPath.substring(0, targetSubPath.lastIndexOf("/") + 1);
+          }
+
+          clearCacheForPath(mount.id, parentSubPath, false, "复制操作");
+        } else if (!targetIsDirectory) {
+          // 如果目标是根目录下的文件，清除根目录缓存
+          clearCacheForPath(mount.id, "/", false, "复制操作");
+        }
+
+        // 如果目标是目录，也需要清除目标目录自身的缓存
+        if (targetIsDirectory) {
+          clearCacheForPath(mount.id, targetSubPath, true, "复制操作");
+        }
+
+        return result;
+      },
+      "复制文件或目录",
+      "复制失败"
+  );
+}
+
+/**
+ * 复制目录
+ * @param {S3Client} s3Client - S3客户端
+ * @param {string} bucketName - 存储桶名称
+ * @param {string} sourcePath - 源目录路径
+ * @param {string} targetPath - 目标目录路径
+ * @param {boolean} skipExisting - 是否跳过已存在的文件
+ * @returns {Promise<Object>} 复制结果，包含成功、跳过和失败的计数
+ */
+async function copyDirectory(s3Client, bucketName, sourcePath, targetPath, skipExisting = true) {
+  // 确保源路径和目标路径都以斜杠结尾
+  const sourcePrefix = sourcePath.endsWith("/") ? sourcePath : sourcePath + "/";
+  const targetPrefix = targetPath.endsWith("/") ? targetPath : targetPath + "/";
+
+  // 统计信息
+  const stats = {
+    success: 0,
+    skipped: 0,
+    failed: 0,
+    details: [],
+  };
+
+  try {
+    // 首先检查目标目录是否存在，不存在则创建
+    let targetDirExists = false;
+    try {
+      targetDirExists = await checkS3ObjectExists(s3Client, bucketName, targetPrefix);
+    } catch (error) {
+      // 如果是404错误，说明目录不存在，需要创建
+      if (error instanceof HTTPException) {
+        // 创建目标目录
+        const putParams = {
+          Bucket: bucketName,
+          Key: targetPrefix,
+          Body: "",
+          ContentType: "application/x-directory",
+        };
+
+        try {
+          const putCommand = new PutObjectCommand(putParams);
+          await s3Client.send(putCommand);
+          targetDirExists = true;
+          console.log(`已创建目标目录: ${targetPrefix}`);
+        } catch (createError) {
+          console.error(`创建目标目录失败: ${createError.message}`);
+          stats.failed++;
+          stats.details.push({
+            path: targetPrefix,
+            error: `创建目标目录失败: ${createError.message}`,
+          });
+          return stats;
+        }
+      } else {
+        // 其他错误
+        throw error;
+      }
+    }
+
+    // 列出源目录中的所有内容
+    let continuationToken = undefined;
+
+    do {
+      // 列出源目录内容
+      const listParams = {
+        Bucket: bucketName,
+        Prefix: sourcePrefix,
+        ContinuationToken: continuationToken,
+      };
+
+      const listCommand = new ListObjectsV2Command(listParams);
+      const listResponse = await s3Client.send(listCommand);
+
+      // 检查是否有内容
+      if (listResponse.Contents && listResponse.Contents.length > 0) {
+        // 处理每个对象
+        for (const item of listResponse.Contents) {
+          const sourceKey = item.Key;
+
+          // 跳过目录标记（与前缀完全匹配的对象）
+          if (sourceKey === sourcePrefix) {
+            continue;
+          }
+
+          // 计算目标对象的键
+          const relativePath = sourceKey.substring(sourcePrefix.length);
+          const targetKey = targetPrefix + relativePath;
+
+          // 检查是否为子目录中的文件
+          if (relativePath.includes("/")) {
+            // 确保子目录在目标位置存在
+            const subDirPart = relativePath.substring(0, relativePath.lastIndexOf("/") + 1);
+            const targetSubDirPath = targetPrefix + subDirPart;
+
+            // 检查子目录是否存在，不存在则创建
+            try {
+              const headSubDirParams = {
+                Bucket: bucketName,
+                Key: targetSubDirPath,
+              };
+
+              const headSubDirCommand = new HeadObjectCommand(headSubDirParams);
+
+              try {
+                await s3Client.send(headSubDirCommand);
+                // 目录已存在，继续处理
+              } catch (subDirError) {
+                // 如果是404错误，说明子目录不存在，需要创建
+                if (subDirError.$metadata && subDirError.$metadata.httpStatusCode === 404) {
+                  // 确保路径有效
+                  if (!targetSubDirPath || targetSubDirPath.trim() === "") {
+                    console.error(`无效的子目录路径: 空路径`);
+                    stats.failed++;
+                    stats.details.push({
+                      path: sourceKey,
+                      error: `无效的子目录路径: 空路径`,
+                    });
+                    continue; // 跳过这个文件，继续处理其他文件
+                  }
+
+                  const putSubDirParams = {
+                    Bucket: bucketName,
+                    Key: targetSubDirPath,
+                    Body: "",
+                    ContentType: "application/x-directory",
+                  };
+
+                  const putSubDirCommand = new PutObjectCommand(putSubDirParams);
+                  await s3Client.send(putSubDirCommand);
+                } else {
+                  // 其他错误
+                  throw subDirError;
+                }
+              }
+            } catch (error) {
+              console.error(`处理子目录时出错: ${error.message}`);
+              stats.failed++;
+              stats.details.push({
+                path: targetSubDirPath,
+                error: `处理子目录失败: ${error.message}`,
+              });
+              continue; // 跳过这个文件，继续处理其他文件
+            }
+          }
+
+          // 检查目标文件是否已存在
+          let targetExists = false;
+          try {
+            const headTargetParams = {
+              Bucket: bucketName,
+              Key: targetKey,
+            };
+
+            const headTargetCommand = new HeadObjectCommand(headTargetParams);
+            await s3Client.send(headTargetCommand);
+            targetExists = true;
+          } catch (error) {
+            if (error.$metadata && error.$metadata.httpStatusCode !== 404) {
+              throw error;
+            }
+            // 404错误表示目标不存在，可以继续复制
+          }
+
+          // 如果目标已存在且设置为跳过已存在文件，则跳过
+          if (targetExists && skipExisting) {
+            stats.skipped++;
+            stats.details.push({
+              source: sourceKey,
+              target: targetKey,
+              status: "skipped",
+              message: "目标文件已存在，已跳过",
+            });
+            continue;
+          }
+
+          // 复制文件
+          try {
+            const copyParams = {
+              Bucket: bucketName,
+              CopySource: encodeURIComponent(bucketName + "/" + sourceKey),
+              Key: targetKey,
+            };
+
+            const copyCommand = new CopyObjectCommand(copyParams);
+            await s3Client.send(copyCommand);
+
+            stats.success++;
+            stats.details.push({
+              source: sourceKey,
+              target: targetKey,
+              status: "success",
+              message: "文件复制成功",
+            });
+          } catch (copyError) {
+            console.error(`复制文件失败: ${copyError.message}`, { source: sourceKey, target: targetKey });
+            stats.failed++;
+            stats.details.push({
+              source: sourceKey,
+              target: targetKey,
+              status: "failed",
+              error: `复制失败: ${copyError.message}`,
+            });
+          }
+        }
+      }
+
+      // 更新令牌用于下一次循环
+      continuationToken = listResponse.IsTruncated ? listResponse.NextContinuationToken : undefined;
+    } while (continuationToken);
+
+    return {
+      success: true,
+      sourcePath: sourcePath,
+      targetPath: targetPath,
+      stats: {
+        total: stats.success + stats.skipped + stats.failed,
+        success: stats.success,
+        skipped: stats.skipped,
+        failed: stats.failed,
+      },
+      details: stats.details,
+      message: `目录复制完成，成功: ${stats.success}，跳过: ${stats.skipped}，失败: ${stats.failed}`,
+    };
+  } catch (error) {
+    console.error(`复制目录过程中发生错误: ${error.message}`);
+    return {
+      success: false,
+      sourcePath: sourcePath,
+      targetPath: targetPath,
+      error: error.message,
+      stats: {
+        total: stats.success + stats.skipped + stats.failed,
+        success: stats.success,
+        skipped: stats.skipped,
+        failed: stats.failed,
+      },
+      details: stats.details,
+      message: `目录复制过程中发生错误: ${error.message}`,
+    };
+  }
+}
+
+/**
+ * 批量复制文件或目录
+ * @param {D1Database} db - D1数据库实例
+ * @param {Array<{sourcePath: string, targetPath: string}>} items - 要复制的项目数组，每项包含源路径和目标路径
+ * @param {string} userId - 用户ID
+ * @param {string} userType - 用户类型 (admin 或 apiKey)
+ * @param {string} encryptionSecret - 加密密钥
+ * @param {boolean} skipExisting - 是否跳过已存在的文件，默认为true
+ * @returns {Promise<{success: number, skipped: number, failed: Array<{sourcePath: string, targetPath: string, error: string}>}>} 批量复制结果
+ */
+export async function batchCopyItems(db, items, userId, userType, encryptionSecret, skipExisting = true) {
+  // 结果统计
+  const result = {
+    success: 0,
+    skipped: 0,
+    failed: [],
+    details: [],
+    crossStorageResults: [], // 用于存储跨存储复制的预签名URL和元数据
+  };
+
+  // 逐个处理每个复制项
+  for (const item of items) {
+    try {
+      // 检查路径是否为空或无效
+      if (!item.sourcePath || !item.targetPath) {
+        const errorMessage = "源路径或目标路径不能为空";
+        console.error(errorMessage, item);
+        result.failed.push({
+          sourcePath: item.sourcePath || "未指定",
+          targetPath: item.targetPath || "未指定",
+          error: errorMessage,
+        });
+        continue;
+      }
+
+      // 检查并修正路径格式：如果源路径是目录（以"/"结尾），确保目标路径也是目录格式
+      let { sourcePath, targetPath } = item;
+      const sourceIsDirectory = sourcePath.endsWith("/");
+
+      // 如果源是目录但目标不是目录格式，自动添加斜杠
+      if (sourceIsDirectory && !targetPath.endsWith("/")) {
+        targetPath = targetPath + "/";
+        console.log(`自动修正目录路径格式: ${item.sourcePath} -> ${targetPath}`);
+      }
+
+      const copyResult = await copyItem(db, sourcePath, targetPath, userId, userType, encryptionSecret, skipExisting);
+
+      // 检查是否为跨存储复制结果
+      if (copyResult.crossStorage) {
+        // 将跨存储复制结果添加到专门的数组中
+        result.crossStorageResults.push(copyResult);
+        continue; // 跳过后续处理，继续下一个项目
+      }
+
+      // 根据复制结果更新统计
+      if (copyResult.success) {
+        if (copyResult.skipped) {
+          result.skipped++;
+        } else {
+          result.success++;
+        }
+
+        // 如果是目录复制，并且有详细统计，则合并统计数据
+        if (copyResult.stats) {
+          result.success += copyResult.stats.success;
+          result.skipped += copyResult.stats.skipped;
+
+          // 合并失败记录
+          if (copyResult.stats.failed > 0 && copyResult.details) {
+            copyResult.details.forEach((detail) => {
+              if (detail.status === "failed") {
+                result.failed.push({
+                  sourcePath: detail.source,
+                  targetPath: detail.target,
+                  error: detail.error,
+                });
+                console.error(`复制子项失败: ${detail.source} -> ${detail.target}, 错误: ${detail.error}`);
+              }
+            });
+          }
+
+          // 添加详细记录
+          if (copyResult.details) {
+            result.details = result.details.concat(copyResult.details);
+          }
+        }
+      }
+    } catch (error) {
+      // 记录失败信息
+      const errorMessage = error instanceof HTTPException ? error.message : error.message || "未知错误";
+      console.error(`复制失败: ${item.sourcePath} -> ${item.targetPath}, 错误: ${errorMessage}`, error);
+
+      result.failed.push({
+        sourcePath: item.sourcePath,
+        targetPath: item.targetPath,
+        error: errorMessage,
+      });
+    }
+  }
+
+  // 如果有跨存储复制结果，添加标志到结果中
+  if (result.crossStorageResults.length > 0) {
+    result.hasCrossStorageOperations = true;
+  }
+
+  return result;
+}
+
+/**
+ * 处理跨存储复制请求
+ * @param {D1Database} db - D1数据库实例
+ * @param {string} sourcePath - 源路径
+ * @param {string} targetPath - 目标路径
+ * @param {string} userId - 用户ID
+ * @param {string} userType - 用户类型 (admin 或 apiKey)
+ * @param {string} encryptionSecret - 加密密钥
+ * @returns {Promise<Object>} 包含预签名URL和元数据的结果
+ */
+export async function handleCrossStorageCopy(db, sourcePath, targetPath, userId, userType, encryptionSecret) {
+  return handleFsError(
+      async () => {
+        // 检查源路径和目标路径是否相同
+        if (sourcePath === targetPath) {
+          throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "源路径和目标路径不能相同" });
+        }
+
+        // 检查路径类型 (都是文件或都是目录)
+        const sourceIsDirectory = sourcePath.endsWith("/");
+        let targetIsDirectory = targetPath.endsWith("/");
+
+        // 如果源是目录但目标不是目录格式，自动添加斜杠
+        if (sourceIsDirectory && !targetIsDirectory) {
+          targetPath = targetPath + "/";
+          targetIsDirectory = true;
+        }
+
+        // 对于文件复制，确保目标路径也是文件路径格式
+        if (!sourceIsDirectory && targetIsDirectory) {
+          throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "复制文件时，目标路径不能是目录格式" });
+        }
+
+        // 查找源路径的挂载点
+        const sourceMountResult = await findMountPointByPath(db, sourcePath, userId, userType);
+
+        // 处理错误情况
+        if (sourceMountResult.error) {
+          throw new HTTPException(sourceMountResult.error.status, { message: sourceMountResult.error.message });
+        }
+
+        // 查找目标路径的挂载点
+        const targetMountResult = await findMountPointByPath(db, targetPath, userId, userType);
+
+        // 处理错误情况
+        if (targetMountResult.error) {
+          throw new HTTPException(targetMountResult.error.status, { message: targetMountResult.error.message });
+        }
+
+        // 确认是跨存储操作
+        if (sourceMountResult.mount.id === targetMountResult.mount.id) {
+          throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "源路径和目标路径在同一存储中，应使用常规复制功能" });
+        }
+
+        // 检查源挂载点和目标挂载点的存储类型是否为S3
+        if (sourceMountResult.mount.storage_type !== "S3" || targetMountResult.mount.storage_type !== "S3") {
+          throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "跨存储复制仅支持S3类型存储" });
+        }
+
+        const sourceMount = sourceMountResult.mount;
+        const targetMount = targetMountResult.mount;
+        const sourceSubPath = sourceMountResult.subPath;
+        const targetSubPath = targetMountResult.subPath;
+
+        // 获取源S3配置
+        const sourceS3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(sourceMount.storage_config_id).first();
+        if (!sourceS3Config) {
+          throw new HTTPException(ApiStatus.NOT_FOUND, { message: "源存储配置不存在" });
+        }
+
+        // 获取目标S3配置
+        const targetS3Config = await db.prepare("SELECT * FROM s3_configs WHERE id = ?").bind(targetMount.storage_config_id).first();
+        if (!targetS3Config) {
+          throw new HTTPException(ApiStatus.NOT_FOUND, { message: "目标存储配置不存在" });
+        }
+
+        // 创建源S3客户端
+        const sourceS3Client = await createS3Client(sourceS3Config, encryptionSecret);
+
+        // 规范化S3子路径
+        const s3SourcePath = normalizeS3SubPath(sourceSubPath, sourceS3Config, sourceIsDirectory);
+        const s3TargetPath = normalizeS3SubPath(targetSubPath, targetS3Config, targetIsDirectory);
+
+        // 检查源路径是否存在
+        try {
+          const sourceExists = await checkS3ObjectExists(sourceS3Client, sourceS3Config.bucket_name, s3SourcePath);
+          if (!sourceExists) {
+            // 如果是目录，尝试列出目录内容确认存在性
+            if (sourceIsDirectory) {
+              const listResponse = await listS3Directory(sourceS3Client, sourceS3Config.bucket_name, s3SourcePath);
+
+              // 如果没有内容，说明目录不存在或为空
+              if (!listResponse.Contents || listResponse.Contents.length === 0) {
+                throw new HTTPException(ApiStatus.NOT_FOUND, { message: "源路径不存在或为空目录" });
+              }
+            } else {
+              throw new HTTPException(ApiStatus.NOT_FOUND, { message: "源文件不存在" });
+            }
+          }
+        } catch (error) {
+          if (error instanceof HTTPException) {
+            throw error;
+          }
+          throw new HTTPException(ApiStatus.INTERNAL_ERROR, { message: "检查源路径存在性失败: " + error.message });
+        }
+
+        // 如果是目录复制，需要获取目录中所有文件的预签名URL
+        if (sourceIsDirectory) {
+          const items = await getDirectoryPresignedUrls(sourceS3Client, sourceS3Config, targetS3Config, s3SourcePath, s3TargetPath, encryptionSecret);
+
+          return {
+            crossStorage: true,
+            isDirectory: true,
+            sourcePath,
+            targetPath,
+            sourceMount: sourceMount.id,
+            targetMount: targetMount.id,
+            items,
+            message: `跨存储目录复制请求已生成，共 ${items.length} 个文件`,
+          };
+        } else {
+          // 单文件复制
+          // 生成源文件的下载预签名URL
+          const expiresIn = 3600; // 1小时有效期
+          const downloadUrl = await generatePresignedUrl(sourceS3Config, s3SourcePath, encryptionSecret, expiresIn);
+
+          // 提取文件名
+          const fileName = sourcePath.split("/").filter(Boolean).pop();
+
+          // 确定目标文件路径
+          let targetFilePath;
+          if (targetPath.endsWith("/")) {
+            targetFilePath = targetPath + fileName;
+          } else {
+            targetFilePath = targetPath;
+          }
+
+          // 提取目标文件名
+          const targetFileName = targetFilePath.split("/").filter(Boolean).pop();
+
+          // 构建上传预签名URL的目标S3路径
+          let uploadKey = s3TargetPath;
+          if (targetIsDirectory) {
+            uploadKey = s3TargetPath + fileName;
+          }
+
+          // 获取源文件的元数据以确定contentType
+          let contentType = "application/octet-stream";
+          try {
+            const headResponse = await getS3ObjectMetadata(sourceS3Client, sourceS3Config.bucket_name, s3SourcePath);
+            if (headResponse) {
+              contentType = headResponse.ContentType || contentType;
+            }
+          } catch (error) {
+            console.warn(`获取源文件元数据失败，使用默认content-type: ${error.message}`);
+          }
+
+          // 生成目标文件的上传预签名URL
+          const uploadUrl = await generatePresignedPutUrl(targetS3Config, uploadKey, contentType, encryptionSecret, expiresIn);
+
+          return {
+            crossStorage: true,
+            isDirectory: false,
+            sourcePath,
+            targetPath: targetFilePath,
+            sourceMount: sourceMount.id,
+            targetMount: targetMount.id,
+            sourceS3Path: s3SourcePath,
+            targetS3Path: uploadKey,
+            fileName,
+            targetFileName,
+            contentType,
+            downloadUrl,
+            uploadUrl,
+            message: "已生成跨存储文件复制的预签名URL",
+          };
+        }
+      },
+      "跨存储复制",
+      "跨存储复制请求处理失败"
   );
 }

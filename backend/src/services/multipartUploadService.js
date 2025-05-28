@@ -8,7 +8,7 @@ import { findMountPointByPath, normalizeS3SubPath, updateMountLastUsed, checkDir
 import { createS3Client, buildS3Url } from "../utils/s3Utils.js";
 import { CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, ListPartsCommand } from "@aws-sdk/client-s3";
 import { generateFileId } from "../utils/common.js";
-import { directoryCacheManager, clearCacheForFilePath } from "../utils/DirectoryCache.js";
+import { directoryCacheManager, clearCacheForFilePath, clearCacheForPath } from "../utils/DirectoryCache.js";
 import { getLocalTimeString } from "../utils/common.js";
 
 /**
@@ -365,23 +365,20 @@ export async function completeMultipartUpload(
           parentPath = "/";
         }
 
+        // 清除父目录缓存
         if (mount.id && parentPath) {
-          const invalidatedCount = directoryCacheManager.invalidatePathAndAncestors(mount.id, parentPath);
-          console.log(`缓存已刷新（包含所有父路径）：挂载点=${mount.id}, 路径=${parentPath}, 清理了${invalidatedCount}个缓存条目`);
+          clearCacheForPath(mount.id, parentPath, false, "分片上传完成");
 
           // 额外刷新挂载点的根目录缓存，确保在任何情况下都能显示新上传的文件
           if (mount.mount_path && mount.mount_path !== parentPath) {
             const rootPath = mount.mount_path.endsWith("/") ? mount.mount_path : mount.mount_path + "/";
-            const rootInvalidatedCount = directoryCacheManager.invalidate(mount.id, rootPath);
-            if (rootInvalidatedCount) {
-              console.log(`挂载点根目录缓存已刷新：挂载点=${mount.id}, 根路径=${rootPath}`);
-            }
+            clearCacheForPath(mount.id, rootPath, false, "分片上传完成-根路径");
           }
         } else {
           console.warn(`跳过缓存刷新，参数不完整: mountId=${mount.id}, parentPath=${parentPath}`);
         }
 
-        // 调用clearCacheForFilePath函数，更彻底地清除文件相关缓存
+        // 调用clearCacheForFilePath函数，处理可能的多挂载点情况
         try {
           await clearCacheForFilePath(db, s3SubPath, s3Config.id);
           console.log(`已调用clearCacheForFilePath清除文件相关缓存 - 路径=${s3SubPath}, S3配置ID=${s3Config.id}`);
