@@ -617,6 +617,126 @@ b2.exe bucket update <bucketName> allPrivate --cors-rules "[{\"corsRuleName\":\"
 
 5. 已完成跨域配置
 
+## MinIO API 相关获取及跨域配置
+
+1. **部署 MinIO 服务器**
+
+   使用以下 Docker Compose 配置（参考）快速部署 MinIO 服务：
+
+   ```yaml
+   version: '3'
+
+   services:
+     minio:
+       image: minio/minio:RELEASE.2025-02-18T16-25-55Z
+       container_name: minio-server
+       command: server /data --console-address :9001 --address :9000
+       environment:
+         - MINIO_ROOT_USER=minioadmin        # 设置管理员用户名
+         - MINIO_ROOT_PASSWORD=minioadmin    # 设置管理员密码
+         - MINIO_BROWSER=on
+         - MINIO_SERVER_URL=https://minio.example.com    # S3 API 访问地址
+         - MINIO_BROWSER_REDIRECT_URL=https://console.example.com  # 控制台访问地址
+       ports:
+         - "9000:9000"  # S3 API 端口
+         - "9001:9001"  # 控制台端口
+       volumes:
+         - ./data:/data
+         - ./certs:/root/.minio/certs  # 如需配置SSL证书
+       restart: always
+   ```
+
+   运行 `docker-compose up -d` 启动服务。
+
+2. **配置反向代理（参考）**
+
+   为确保 MinIO 服务正常工作，特别是文件预览功能，需要正确配置反向代理。以下是 OpenResty/Nginx 的推荐配置：
+
+   **MinIO S3 API 反向代理 (minio.example.com)**:
+
+   ```nginx
+   location / {
+       proxy_pass http://127.0.0.1:9000;
+       proxy_set_header Host $host;
+       proxy_set_header X-Real-IP $remote_addr;
+       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+       proxy_set_header X-Forwarded-Proto $scheme;
+       
+       # HTTP 连接优化
+       proxy_http_version 1.1;
+       proxy_set_header Connection "";  # 启用HTTP/1.1的keepalive
+       
+       # 关键配置：解决403错误和预览问题
+       proxy_cache off;
+       proxy_buffering off;
+       proxy_request_buffering off;
+       
+       # 无文件大小限制
+       client_max_body_size 0;
+   }
+   ```   
+
+   **MinIO 控制台反向代理 (console.example.com)**:
+
+   ```nginx
+   location / {
+       proxy_pass http://127.0.0.1:9001;
+       proxy_set_header Host $host;
+       proxy_set_header X-Real-IP $remote_addr;
+       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+       proxy_set_header X-Forwarded-Proto $scheme;
+       
+       # WebSocket 支持
+       proxy_http_version 1.1;
+       proxy_set_header Upgrade $http_upgrade;
+       proxy_set_header Connection "upgrade";
+       
+       # 关键配置
+       proxy_cache off;
+       proxy_buffering off;
+       
+       # 无文件大小限制
+       client_max_body_size 0;
+   }
+   ```
+3. **访问控制台创建存储桶和创建访问密钥**
+
+   如有详细配置需求，可参考官方文档：https://min.io/docs/minio/container/index.html
+
+   CN: https://min-io.cn/docs/minio/container/index.html
+
+   ![minio-1](./images/minio-1.png)
+
+4. **相关配置（可选）**
+
+   允许的源包含您的前端域名
+   ![minio-2](./images/minio-2.png)
+
+5. **在 CloudPaste 中配置 MinIO**
+
+   - 登录 CloudPaste 管理界面
+   - 进入 "S3存储配置" → "添加存储配置"
+   - 选择 "其他兼容S3服务" 作为提供商类型
+   - 填入以下信息：
+      - 名称：自定义名称
+      - 端点URL：您的 MinIO 服务地址（如 `https://minio.example.com`）
+      - 存储桶名称：之前创建的存储桶名称
+      - 访问密钥ID：您的 Access Key
+      - 访问密钥：您的 Secret Key
+      - 区域：可留空
+      - 路径风格访问：必须启用！！！！
+   - 点击 "测试连接" 确认配置正确
+   - 保存配置
+
+6. **注意与故障排查**
+
+   - **注意事项**：如使用Cloudfare开启cdn可能需要加上proxy_set_header Accept-Encoding "identity"，同时存在缓存问题，最好仅用 DNS 解析
+   - **403 错误**：确保反向代理配置中包含 `proxy_cache off` 和 `proxy_buffering off`
+   - **预览问题**：确保 MinIO 服务器正确配置了 `MINIO_SERVER_URL` 和 `MINIO_BROWSER_REDIRECT_URL`
+   - **上传失败**：检查 CORS 配置是否正确，确保允许的源包含您的前端域名
+   - **控制台无法访问**：检查 WebSocket 配置是否正确，特别是 `Connection "upgrade"` 设置
+
+
 ## 更多 S3 相关配置待续......
 
 </details>
