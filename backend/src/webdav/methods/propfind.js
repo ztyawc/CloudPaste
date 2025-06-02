@@ -185,12 +185,11 @@ export async function handlePropfind(c, path, userId, userType, db) {
     // 规范化S3子路径
     let s3SubPath = subPath.startsWith("/") ? subPath.substring(1) : subPath;
 
-    // 如果有默认文件夹，添加到路径
-    if (s3Config.default_folder) {
-      let defaultFolder = s3Config.default_folder;
-      if (!defaultFolder.endsWith("/")) defaultFolder += "/";
-      s3SubPath = defaultFolder + s3SubPath;
-    }
+    // 处理root_prefix
+    const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
+
+    // 构建完整的S3路径
+    s3SubPath = rootPrefix + s3SubPath;
 
     // 规范化S3子路径，移除多余的斜杠
     s3SubPath = s3SubPath.replace(/\/+/g, "/");
@@ -222,7 +221,8 @@ export async function handlePropfind(c, path, userId, userType, db) {
 async function respondWithMounts(c, userId, userType, db, path = "/") {
   let mounts;
   if (userType === "admin") {
-    mounts = await getMountsByAdmin(db, userId);
+    // 对于WebDAV访问，管理员也只能看到激活的挂载点
+    mounts = await getMountsByAdmin(db, userId, false);
   } else if (userType === "apiKey") {
     mounts = await getMountsByApiKey(db, userId);
   } else {

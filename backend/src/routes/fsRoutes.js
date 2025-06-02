@@ -25,7 +25,7 @@ import {
 } from "../services/fsService.js";
 import { findMountPointByPath } from "../webdav/utils/webdavUtils.js";
 import { generatePresignedPutUrl, buildS3Url } from "../utils/s3Utils.js";
-import { directoryCacheManager, clearCacheForFilePath, clearCacheForPath } from "../utils/DirectoryCache.js";
+import { directoryCacheManager, clearCache } from "../utils/DirectoryCache.js";
 import { handleInitMultipartUpload, handleUploadPart, handleCompleteMultipartUpload, handleAbortMultipartUpload } from "../controllers/multipartUploadController.js";
 
 // 创建文件系统路由处理程序
@@ -472,6 +472,12 @@ fsRoutes.delete("/api/admin/fs/remove", async (c) => {
 
   try {
     await removeItem(db, path, adminId, "admin", c.env.ENCRYPTION_SECRET);
+
+    // 添加防缓存头部，确保前端能获取到最新状态
+    c.header("Cache-Control", "no-cache, no-store, must-revalidate");
+    c.header("Pragma", "no-cache");
+    c.header("Expires", "0");
+
     return c.json({
       code: ApiStatus.SUCCESS,
       message: "删除成功",
@@ -498,6 +504,12 @@ fsRoutes.delete("/api/user/fs/remove", async (c) => {
 
   try {
     await removeItem(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
+
+    // 添加防缓存头部，确保前端能获取到最新状态
+    c.header("Cache-Control", "no-cache, no-store, must-revalidate");
+    c.header("Pragma", "no-cache");
+    c.header("Expires", "0");
+
     return c.json({
       code: ApiStatus.SUCCESS,
       message: "删除成功",
@@ -957,11 +969,9 @@ fsRoutes.post("/api/admin/fs/presign", authMiddleware, async (c) => {
       relativePathInMount = relativePathInMount.substring(1);
     }
 
-    // S3路径构建
-    let s3Path = relativePathInMount;
-    if (s3Config.default_folder) {
-      s3Path = s3Config.default_folder.endsWith("/") ? s3Config.default_folder + s3Path : s3Config.default_folder + "/" + s3Path;
-    }
+    // S3路径构建 - 与目录列表逻辑保持一致，只使用root_prefix
+    const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
+    let s3Path = rootPrefix + relativePathInMount;
 
     // 确保s3Path不为空
     if (!s3Path) {
@@ -1059,11 +1069,9 @@ fsRoutes.post("/api/user/fs/presign", apiKeyFileMiddleware, async (c) => {
       relativePathInMount = relativePathInMount.substring(1);
     }
 
-    // S3路径构建
-    let s3Path = relativePathInMount;
-    if (s3Config.default_folder) {
-      s3Path = s3Config.default_folder.endsWith("/") ? s3Config.default_folder + s3Path : s3Config.default_folder + "/" + s3Path;
-    }
+    // S3路径构建 - 与目录列表逻辑保持一致，只使用root_prefix
+    const rootPrefix = s3Config.root_prefix ? (s3Config.root_prefix.endsWith("/") ? s3Config.root_prefix : s3Config.root_prefix + "/") : "";
+    let s3Path = rootPrefix + relativePathInMount;
 
     // 确保s3Path不为空
     if (!s3Path) {
@@ -1167,20 +1175,13 @@ fsRoutes.post("/api/admin/fs/presign/commit", authMiddleware, async (c) => {
     // 提取父路径
     const parentPath = targetPath.substring(0, targetPath.lastIndexOf("/") + 1);
 
-    // 刷新目录缓存
-    if (mountId && parentPath) {
-      clearCacheForPath(mountId, parentPath, false, "预签名上传完成");
-    } else {
-      console.warn(`跳过缓存刷新，参数不完整: mountId=${mountId}, parentPath=${parentPath}`);
-    }
-
-    // 调用clearCacheForFilePath函数，更彻底地清除文件相关缓存
+    // 刷新目录缓存 - 使用统一的clearCache函数
     try {
-      await clearCacheForFilePath(db, s3Path, s3ConfigId);
-      console.log(`已调用clearCacheForFilePath清除文件相关缓存 - 路径=${s3Path}, S3配置ID=${s3ConfigId}`);
+      await clearCache({ mountId });
+      console.log(`预签名上传完成后缓存已清除 - 挂载点=${mountId}`);
     } catch (cacheError) {
       // 不让缓存清除错误影响上传流程
-      console.warn(`清除文件缓存时出错: ${cacheError.message}`);
+      console.warn(`清除缓存时出错: ${cacheError.message}`);
     }
 
     return c.json({
@@ -1267,20 +1268,13 @@ fsRoutes.post("/api/user/fs/presign/commit", apiKeyFileMiddleware, async (c) => 
     // 提取父路径
     const parentPath = targetPath.substring(0, targetPath.lastIndexOf("/") + 1);
 
-    // 刷新目录缓存
-    if (mountId && parentPath) {
-      clearCacheForPath(mountId, parentPath, false, "预签名上传完成");
-    } else {
-      console.warn(`跳过缓存刷新，参数不完整: mountId=${mountId}, parentPath=${parentPath}`);
-    }
-
-    // 调用clearCacheForFilePath函数，更彻底地清除文件相关缓存
+    // 刷新目录缓存 - 使用统一的clearCache函数
     try {
-      await clearCacheForFilePath(db, s3Path, s3ConfigId);
-      console.log(`已调用clearCacheForFilePath清除文件相关缓存 - 路径=${s3Path}, S3配置ID=${s3ConfigId}`);
+      await clearCache({ mountId });
+      console.log(`预签名上传完成后缓存已清除 - 挂载点=${mountId}`);
     } catch (cacheError) {
       // 不让缓存清除错误影响上传流程
-      console.warn(`清除文件缓存时出错: ${cacheError.message}`);
+      console.warn(`清除缓存时出错: ${cacheError.message}`);
     }
 
     return c.json({
@@ -1607,17 +1601,9 @@ fsRoutes.post("/api/admin/fs/batch-copy-commit", authMiddleware, async (c) => {
       }
     }
 
-    // 执行缓存清理
+    // 执行缓存清理 - 使用统一的clearCache函数
     try {
-      // 1. 清理根目录缓存（作为保底措施）
-      clearCacheForPath(mount.id, "/", true, "批量复制完成-根目录");
-
-      // 2. 对每个成功的文件执行彻底的缓存清理
-      for (const file of results.success) {
-        if (file.targetPath) {
-          await clearCacheForFilePath(db, file.targetPath, mount.storage_config_id);
-        }
-      }
+      await clearCache({ mountId: mount.id });
       console.log(`批量复制完成后缓存已刷新：挂载点=${mount.id}, 共处理了${results.success.length}个文件`);
     } catch (cacheError) {
       console.warn(`执行缓存清理时出错: ${cacheError.message}`);
@@ -1698,17 +1684,9 @@ fsRoutes.post("/api/user/fs/batch-copy-commit", apiKeyFileMiddleware, async (c) 
       }
     }
 
-    // 执行缓存清理
+    // 执行缓存清理 - 使用统一的clearCache函数
     try {
-      // 1. 清理根目录缓存（作为保底措施）
-      clearCacheForPath(mount.id, "/", true, "批量复制完成-根目录");
-
-      // 2. 对每个成功的文件执行彻底的缓存清理
-      for (const file of results.success) {
-        if (file.targetPath) {
-          await clearCacheForFilePath(db, file.targetPath, mount.storage_config_id);
-        }
-      }
+      await clearCache({ mountId: mount.id });
       console.log(`批量复制完成后缓存已刷新：挂载点=${mount.id}, 共处理了${results.success.length}个文件`);
     } catch (cacheError) {
       console.warn(`执行缓存清理时出错: ${cacheError.message}`);
