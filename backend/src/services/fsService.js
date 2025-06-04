@@ -4,8 +4,9 @@
  */
 import { HTTPException } from "hono/http-exception";
 import { ApiStatus } from "../constants/index.js";
-import { findMountPointByPath, normalizeS3SubPath, updateMountLastUsed, checkDirectoryExists } from "../webdav/utils/webdavUtils.js";
+import { findMountPointByPath, findMountPointByPathWithApiKey, normalizeS3SubPath, updateMountLastUsed, checkDirectoryExists } from "../webdav/utils/webdavUtils.js";
 import { getMountsByAdmin, getMountsByApiKey } from "./storageMountService.js";
+import { getAccessibleMountsByBasicPath, checkPathPermissionForNavigation } from "./apiKeyService.js";
 import {
   createS3Client,
   buildS3Url,
@@ -80,12 +81,12 @@ async function handleFsError(fn, operationName, defaultErrorMessage) {
  * 列出目录内容
  * @param {D1Database} db - D1数据库实例
  * @param {string} path - 请求路径
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
  * @returns {Promise<Object>} 目录内容对象
  */
-export async function listDirectory(db, path, userId, userType, encryptionSecret) {
+export async function listDirectory(db, path, userIdOrInfo, userType, encryptionSecret) {
   return handleFsError(
       async () => {
         // 规范化路径
@@ -94,9 +95,19 @@ export async function listDirectory(db, path, userId, userType, encryptionSecret
         // 根据用户类型获取挂载点列表
         let mounts;
         if (userType === "admin") {
-          mounts = await getMountsByAdmin(db, userId);
+          mounts = await getMountsByAdmin(db, userIdOrInfo);
         } else if (userType === "apiKey") {
-          mounts = await getMountsByApiKey(db, userId);
+          // 对于API密钥用户，使用基于基本路径的权限检查
+          const apiKeyInfo = userIdOrInfo;
+
+          // 检查请求路径是否在API密钥的基本路径权限范围内
+          // 特殊处理：允许访问从根路径到基本路径的所有父级路径，以便用户能够导航
+          if (!checkPathPermissionForNavigation(apiKeyInfo.basicPath, path)) {
+            throw new HTTPException(ApiStatus.FORBIDDEN, { message: "没有权限访问此路径" });
+          }
+
+          // 获取API密钥可访问的挂载点
+          mounts = await getAccessibleMountsByBasicPath(db, apiKeyInfo.basicPath);
         } else {
           throw new HTTPException(ApiStatus.UNAUTHORIZED, { message: "未授权访问" });
         }
@@ -112,13 +123,20 @@ export async function listDirectory(db, path, userId, userType, encryptionSecret
         for (const mount of mounts) {
           const mountPath = mount.mount_path.startsWith("/") ? mount.mount_path : "/" + mount.mount_path;
 
+          console.log("检查挂载点匹配:", {
+            requestPath: path,
+            mountPath: mountPath,
+            mountName: mount.name,
+          });
+
           // 如果请求路径完全匹配挂载点或者是挂载点的子路径
-          if (path === mountPath + "/" || path.startsWith(mountPath + "/")) {
+          if (path === mountPath || path === mountPath + "/" || path.startsWith(mountPath + "/")) {
             matchingMount = mount;
             subPath = path.substring(mountPath.length);
             if (!subPath.startsWith("/")) {
               subPath = "/" + subPath;
             }
+
             isVirtualPath = false;
             break;
           }
@@ -126,7 +144,10 @@ export async function listDirectory(db, path, userId, userType, encryptionSecret
 
         // 处理虚拟目录路径（根目录或中间目录）
         if (isVirtualPath) {
-          return await getVirtualDirectoryListing(mounts, path);
+          // 对于API密钥用户，需要传递基本路径信息以过滤显示内容
+          const basicPath = userType === "apiKey" ? userIdOrInfo.basicPath : null;
+
+          return await getVirtualDirectoryListing(mounts, path, basicPath);
         }
 
         // 处理实际挂载点目录，查询S3
@@ -141,11 +162,22 @@ export async function listDirectory(db, path, userId, userType, encryptionSecret
  * 获取虚拟目录列表
  * @param {Array} mounts - 挂载点列表
  * @param {string} path - 当前路径
+ * @param {string|null} basicPath - API密钥的基本路径（用于过滤显示内容）
  * @returns {Promise<Object>} 虚拟目录内容
  */
-async function getVirtualDirectoryListing(mounts, path) {
+async function getVirtualDirectoryListing(mounts, path, basicPath = null) {
   // 确保路径格式正确
   path = normalizePath(path, true); // 使用统一的路径规范化函数
+
+  // 检查当前路径是否在基本路径权限范围内
+  let hasPermissionForCurrentPath = true;
+  if (basicPath && basicPath !== "/") {
+    const normalizedBasicPath = basicPath.replace(/\/+$/, "");
+    const normalizedCurrentPath = path.replace(/\/+$/, "") || "/";
+
+    // 只有当前路径是基本路径或其子路径时才有权限
+    hasPermissionForCurrentPath = normalizedCurrentPath === normalizedBasicPath || normalizedCurrentPath.startsWith(normalizedBasicPath + "/");
+  }
 
   // 构造返回结果结构
   const result = {
@@ -154,7 +186,13 @@ async function getVirtualDirectoryListing(mounts, path) {
     isRoot: path === "/",
     isVirtual: true,
     items: [],
+    hasPermission: hasPermissionForCurrentPath, // 添加权限标识
   };
+
+  // 如果没有权限访问当前路径，返回空列表但保留路径信息
+  if (!hasPermissionForCurrentPath) {
+    return result;
+  }
 
   // 目录结构记录
   const directories = new Set();
@@ -186,7 +224,28 @@ async function getVirtualDirectoryListing(mounts, path) {
       // 获取第一级目录
       const firstDir = relativePath.split("/")[0];
       if (firstDir) {
-        directories.add(firstDir);
+        // 如果有基本路径限制，检查这个目录是否在权限范围内
+        if (basicPath) {
+          const dirPath = path + firstDir;
+          const normalizedBasicPath = basicPath === "/" ? "/" : basicPath.replace(/\/+$/, "");
+          const normalizedDirPath = dirPath.replace(/\/+$/, "") || "/";
+
+          // 如果基本路径是根路径，显示所有目录
+          if (normalizedBasicPath === "/") {
+            directories.add(firstDir);
+          }
+          // 检查目录路径是否在基本路径的导航路径上
+          else if (normalizedBasicPath.startsWith(normalizedDirPath + "/") || normalizedBasicPath === normalizedDirPath) {
+            directories.add(firstDir);
+          }
+          // 检查基本路径是否在目录路径范围内
+          else if (normalizedDirPath.startsWith(normalizedBasicPath + "/")) {
+            directories.add(firstDir);
+          }
+        } else {
+          // 没有基本路径限制，显示所有目录
+          directories.add(firstDir);
+        }
       }
     }
   }
@@ -223,8 +282,6 @@ async function getS3DirectoryListing(db, mount, subPath, encryptionSecret) {
   if (mount.cache_ttl > 0) {
     const cachedResult = directoryCacheManager.get(mount.id, subPath);
     if (cachedResult) {
-      // 缓存命中，记录日志并返回缓存结果
-      console.log(`目录缓存命中 - 挂载点:${mount.id}, 路径:${subPath}`);
       return cachedResult;
     }
   }
@@ -271,8 +328,6 @@ async function getS3DirectoryListing(db, mount, subPath, encryptionSecret) {
     fullPrefix += "/";
   }
 
-  console.log("完整S3前缀:", fullPrefix);
-
   // 列出S3对象
   const command = new ListObjectsV2Command({
     Bucket: s3Config.bucket_name,
@@ -282,12 +337,6 @@ async function getS3DirectoryListing(db, mount, subPath, encryptionSecret) {
 
   try {
     const response = await s3Client.send(command);
-
-    console.log("S3 API响应统计:", {
-      prefixesCount: response.CommonPrefixes ? response.CommonPrefixes.length : 0,
-      contentsCount: response.Contents ? response.Contents.length : 0,
-      prefix: fullPrefix,
-    });
 
     // 处理前缀（文件夹）
     if (response.CommonPrefixes) {
@@ -333,7 +382,6 @@ async function getS3DirectoryListing(db, mount, subPath, encryptionSecret) {
 
         // 跳过作为目录标记的对象（与前缀完全相同或只是添加了斜杠的对象）
         if (key === fullPrefix || key === fullPrefix + "/") {
-          console.log("跳过目录标记:", key);
           continue;
         }
 
@@ -364,7 +412,6 @@ async function getS3DirectoryListing(db, mount, subPath, encryptionSecret) {
     // 如果启用了缓存，将结果添加到缓存
     if (mount.cache_ttl > 0) {
       directoryCacheManager.set(mount.id, subPath, result, mount.cache_ttl);
-      console.log(`目录已缓存 - 挂载点:${mount.id}, 路径:${subPath}, TTL:${mount.cache_ttl}秒`);
     }
 
     return result;
@@ -378,16 +425,23 @@ async function getS3DirectoryListing(db, mount, subPath, encryptionSecret) {
  * 获取文件信息
  * @param {D1Database} db - D1数据库实例
  * @param {string} path - 文件路径
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
  * @returns {Promise<Object>} 文件信息
  */
-export async function getFileInfo(db, path, userId, userType, encryptionSecret) {
+export async function getFileInfo(db, path, userIdOrInfo, userType, encryptionSecret) {
   return handleFsError(
       async () => {
         // 查找挂载点
-        const mountResult = await findMountPointByPath(db, path, userId, userType);
+        let mountResult;
+        if (userType === "admin") {
+          mountResult = await findMountPointByPath(db, path, userIdOrInfo, userType);
+        } else if (userType === "apiKey") {
+          mountResult = await findMountPointByPathWithApiKey(db, path, userIdOrInfo);
+        } else {
+          throw new HTTPException(ApiStatus.UNAUTHORIZED, { message: "未授权访问" });
+        }
 
         // 处理错误情况
         if (mountResult.error) {
@@ -555,16 +609,23 @@ export async function getFileInfo(db, path, userId, userType, encryptionSecret) 
  * 预览文件
  * @param {D1Database} db - D1数据库实例
  * @param {string} path - 文件路径
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
  * @returns {Promise<Response>} 文件内容响应，用于预览
  */
-export async function previewFile(db, path, userId, userType, encryptionSecret) {
+export async function previewFile(db, path, userIdOrInfo, userType, encryptionSecret) {
   return handleFsError(
       async () => {
         // 查找挂载点
-        const mountResult = await findMountPointByPath(db, path, userId, userType);
+        let mountResult;
+        if (userType === "admin") {
+          mountResult = await findMountPointByPath(db, path, userIdOrInfo, userType);
+        } else if (userType === "apiKey") {
+          mountResult = await findMountPointByPathWithApiKey(db, path, userIdOrInfo);
+        } else {
+          throw new HTTPException(ApiStatus.UNAUTHORIZED, { message: "未授权访问" });
+        }
 
         // 处理错误情况
         if (mountResult.error) {
@@ -601,16 +662,16 @@ export async function previewFile(db, path, userId, userType, encryptionSecret) 
  * 下载文件
  * @param {D1Database} db - D1数据库实例
  * @param {string} path - 文件路径
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
  * @returns {Promise<Response>} 文件内容响应
  */
-export async function downloadFile(db, path, userId, userType, encryptionSecret) {
+export async function downloadFile(db, path, userIdOrInfo, userType, encryptionSecret) {
   return handleFsError(
       async () => {
         // 查找挂载点
-        const mountResult = await findMountPointByPath(db, path, userId, userType);
+        const mountResult = await findMountPointByPath(db, path, userIdOrInfo, userType);
 
         // 处理错误情况
         if (mountResult.error) {
@@ -647,19 +708,19 @@ export async function downloadFile(db, path, userId, userType, encryptionSecret)
  * 创建目录
  * @param {D1Database} db - D1数据库实例
  * @param {string} path - 目录路径
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
  * @returns {Promise<void>}
  */
-export async function createDirectory(db, path, userId, userType, encryptionSecret) {
+export async function createDirectory(db, path, userIdOrInfo, userType, encryptionSecret) {
   return handleFsError(
       async () => {
         // 确保路径以斜杠结尾
         path = normalizePath(path, true); // 使用统一的路径规范化函数
 
         // 查找挂载点
-        const mountResult = await findMountPointByPath(db, path, userId, userType);
+        const mountResult = await findMountPointByPath(db, path, userIdOrInfo, userType);
 
         // 处理错误情况
         if (mountResult.error) {
@@ -742,19 +803,19 @@ export async function createDirectory(db, path, userId, userType, encryptionSecr
  * @param {D1Database} db - D1数据库实例
  * @param {string} path - 目标路径
  * @param {FormData File} file - 文件对象
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
  * @param {boolean} useMultipart - 是否使用分片上传，默认为true
  * @returns {Promise<Object>} 上传结果信息
  */
-export async function uploadFile(db, path, file, userId, userType, encryptionSecret, useMultipart = true) {
+export async function uploadFile(db, path, file, userIdOrInfo, userType, encryptionSecret, useMultipart = true) {
   return handleFsError(
       async () => {
         // 根据useMultipart参数决定使用哪种上传方式
         if (useMultipart) {
           // 使用分片上传
-          const multipartInfo = await initializeMultipartUpload(db, path, file.type || "application/octet-stream", file.size, userId, userType, encryptionSecret);
+          const multipartInfo = await initializeMultipartUpload(db, path, file.type || "application/octet-stream", file.size, userIdOrInfo, userType, encryptionSecret);
 
           // 返回包含必要信息的对象，前端将使用这些信息进行分片上传
           return {
@@ -773,7 +834,7 @@ export async function uploadFile(db, path, file, userId, userType, encryptionSec
           console.log(`使用直接上传模式，文件: ${file.name}, 大小: ${file.size} 字节`);
 
           // 查找挂载点
-          const mountResult = await findMountPointByPath(db, path, userId, userType);
+          const mountResult = await findMountPointByPath(db, path, userIdOrInfo, userType);
 
           // 处理错误情况
           if (mountResult.error) {
@@ -881,7 +942,7 @@ export async function uploadFile(db, path, file, userId, userType, encryptionSec
                     s3Config.id,
                     fileSlug,
                     result.ETag ? result.ETag.replace(/"/g, "") : null,
-                    `${userType}:${userId}`,
+                    `${userType}:${userType === "apiKey" ? userIdOrInfo.id : userIdOrInfo}`,
                     now,
                     now
                 )
@@ -920,16 +981,16 @@ export async function uploadFile(db, path, file, userId, userType, encryptionSec
  * 删除文件或目录
  * @param {D1Database} db - D1数据库实例
  * @param {string} path - 文件或目录路径
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
  * @returns {Promise<void>}
  */
-export async function removeItem(db, path, userId, userType, encryptionSecret) {
+export async function removeItem(db, path, userIdOrInfo, userType, encryptionSecret) {
   return handleFsError(
       async () => {
         // 查找挂载点
-        const mountResult = await findMountPointByPath(db, path, userId, userType);
+        const mountResult = await findMountPointByPath(db, path, userIdOrInfo, userType);
 
         // 处理错误情况
         if (mountResult.error) {
@@ -1105,12 +1166,12 @@ async function deleteDirectory(s3Client, bucketName, dirPath, db = null, s3Confi
  * @param {D1Database} db - D1数据库实例
  * @param {string} oldPath - 旧路径
  * @param {string} newPath - 新路径
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
  * @returns {Promise<void>}
  */
-export async function renameItem(db, oldPath, newPath, userId, userType, encryptionSecret) {
+export async function renameItem(db, oldPath, newPath, userIdOrInfo, userType, encryptionSecret) {
   return handleFsError(
       async () => {
         // 检查路径类型必须匹配 (都是文件或都是目录)
@@ -1122,7 +1183,7 @@ export async function renameItem(db, oldPath, newPath, userId, userType, encrypt
         }
 
         // 查找源路径的挂载点
-        const oldMountResult = await findMountPointByPath(db, oldPath, userId, userType);
+        const oldMountResult = await findMountPointByPath(db, oldPath, userIdOrInfo, userType);
 
         // 处理错误情况
         if (oldMountResult.error) {
@@ -1130,7 +1191,7 @@ export async function renameItem(db, oldPath, newPath, userId, userType, encrypt
         }
 
         // 查找目标路径的挂载点
-        const newMountResult = await findMountPointByPath(db, newPath, userId, userType);
+        const newMountResult = await findMountPointByPath(db, newPath, userIdOrInfo, userType);
 
         // 处理错误情况
         if (newMountResult.error) {
@@ -1304,12 +1365,12 @@ async function renameDirectory(s3Client, bucketName, oldPath, newPath) {
  * 批量删除文件或目录
  * @param {D1Database} db - D1数据库实例
  * @param {Array<string>} paths - 需要删除的路径数组
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
  * @returns {Promise<{success: number, failed: Array<{path: string, error: string}>}>} 删除结果
  */
-export async function batchRemoveItems(db, paths, userId, userType, encryptionSecret) {
+export async function batchRemoveItems(db, paths, userIdOrInfo, userType, encryptionSecret) {
   // 结果统计
   const result = {
     success: 0,
@@ -1319,7 +1380,7 @@ export async function batchRemoveItems(db, paths, userId, userType, encryptionSe
   // 逐个处理每个路径
   for (const path of paths) {
     try {
-      await removeItem(db, path, userId, userType, encryptionSecret);
+      await removeItem(db, path, userIdOrInfo, userType, encryptionSecret);
       result.success++;
     } catch (error) {
       // 记录失败信息
@@ -1413,18 +1474,18 @@ async function getFileFromS3(s3Config, s3SubPath, fileName, isPreview, encryptio
  * 获取文件预签名下载URL
  * @param {D1Database} db - D1数据库实例
  * @param {string} path - 文件路径
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
  * @param {number} expiresIn - URL过期时间（秒），默认为7天
  * @param {boolean} forceDownload - 是否强制下载（而非预览）
  * @returns {Promise<Object>} 包含预签名URL的对象
  */
-export async function getFilePresignedUrl(db, path, userId, userType, encryptionSecret, expiresIn = 604800, forceDownload = false) {
+export async function getFilePresignedUrl(db, path, userIdOrInfo, userType, encryptionSecret, expiresIn = 604800, forceDownload = false) {
   return handleFsError(
       async () => {
         // 查找挂载点
-        const mountResult = await findMountPointByPath(db, path, userId, userType);
+        const mountResult = await findMountPointByPath(db, path, userIdOrInfo, userType);
 
         // 处理错误情况
         if (mountResult.error) {
@@ -1484,12 +1545,12 @@ export async function getFilePresignedUrl(db, path, userId, userType, encryption
  * @param {D1Database} db - D1数据库实例
  * @param {string} path - 文件路径
  * @param {string|ArrayBuffer} content - 新的文件内容
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
  * @returns {Promise<Object>} 更新结果
  */
-export async function updateFile(db, path, content, userId, userType, encryptionSecret) {
+export async function updateFile(db, path, content, userIdOrInfo, userType, encryptionSecret) {
   // 设置文件大小限制 (10MB)
   const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
@@ -1503,7 +1564,7 @@ export async function updateFile(db, path, content, userId, userType, encryption
         }
 
         // 查找挂载点
-        const mountResult = await findMountPointByPath(db, path, userId, userType);
+        const mountResult = await findMountPointByPath(db, path, userIdOrInfo, userType);
 
         // 处理错误情况
         if (mountResult.error) {
@@ -1666,13 +1727,13 @@ export async function updateFile(db, path, content, userId, userType, encryption
  * @param {D1Database} db - D1数据库实例
  * @param {string} sourcePath - 源路径
  * @param {string} targetPath - 目标路径
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
  * @param {boolean} skipExisting - 是否跳过已存在的文件，默认为true
  * @returns {Promise<Object>} 复制结果
  */
-export async function copyItem(db, sourcePath, targetPath, userId, userType, encryptionSecret, skipExisting = true) {
+export async function copyItem(db, sourcePath, targetPath, userIdOrInfo, userType, encryptionSecret, skipExisting = true) {
   return handleFsError(
       async () => {
         // 检查源路径和目标路径不能相同
@@ -1696,7 +1757,7 @@ export async function copyItem(db, sourcePath, targetPath, userId, userType, enc
         }
 
         // 查找源路径的挂载点
-        const sourceMountResult = await findMountPointByPath(db, sourcePath, userId, userType);
+        const sourceMountResult = await findMountPointByPath(db, sourcePath, userIdOrInfo, userType);
 
         // 处理错误情况
         if (sourceMountResult.error) {
@@ -1704,7 +1765,7 @@ export async function copyItem(db, sourcePath, targetPath, userId, userType, enc
         }
 
         // 查找目标路径的挂载点
-        const targetMountResult = await findMountPointByPath(db, targetPath, userId, userType);
+        const targetMountResult = await findMountPointByPath(db, targetPath, userIdOrInfo, userType);
 
         // 处理错误情况
         if (targetMountResult.error) {
@@ -1716,7 +1777,7 @@ export async function copyItem(db, sourcePath, targetPath, userId, userType, enc
           // 判断两个挂载点是否都是S3类型
           if (sourceMountResult.mount.storage_type === "S3" && targetMountResult.mount.storage_type === "S3") {
             // 调用跨存储复制处理函数
-            return await handleCrossStorageCopy(db, sourcePath, targetPath, userId, userType, encryptionSecret);
+            return await handleCrossStorageCopy(db, sourcePath, targetPath, userIdOrInfo, userType, encryptionSecret);
           } else {
             throw new HTTPException(ApiStatus.BAD_REQUEST, { message: "跨存储复制仅支持S3类型存储" });
           }
@@ -2127,13 +2188,13 @@ async function copyDirectory(s3Client, bucketName, sourcePath, targetPath, skipE
  * 批量复制文件或目录
  * @param {D1Database} db - D1数据库实例
  * @param {Array<{sourcePath: string, targetPath: string}>} items - 要复制的项目数组，每项包含源路径和目标路径
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
  * @param {boolean} skipExisting - 是否跳过已存在的文件，默认为true
  * @returns {Promise<{success: number, skipped: number, failed: Array<{sourcePath: string, targetPath: string, error: string}>}>} 批量复制结果
  */
-export async function batchCopyItems(db, items, userId, userType, encryptionSecret, skipExisting = true) {
+export async function batchCopyItems(db, items, userIdOrInfo, userType, encryptionSecret, skipExisting = true) {
   // 结果统计
   const result = {
     success: 0,
@@ -2168,7 +2229,7 @@ export async function batchCopyItems(db, items, userId, userType, encryptionSecr
         console.log(`自动修正目录路径格式: ${item.sourcePath} -> ${targetPath}`);
       }
 
-      const copyResult = await copyItem(db, sourcePath, targetPath, userId, userType, encryptionSecret, skipExisting);
+      const copyResult = await copyItem(db, sourcePath, targetPath, userIdOrInfo, userType, encryptionSecret, skipExisting);
 
       // 检查是否为跨存储复制结果
       if (copyResult.crossStorage) {
@@ -2236,12 +2297,12 @@ export async function batchCopyItems(db, items, userId, userType, encryptionSecr
  * @param {D1Database} db - D1数据库实例
  * @param {string} sourcePath - 源路径
  * @param {string} targetPath - 目标路径
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
  * @returns {Promise<Object>} 包含预签名URL和元数据的结果
  */
-export async function handleCrossStorageCopy(db, sourcePath, targetPath, userId, userType, encryptionSecret) {
+export async function handleCrossStorageCopy(db, sourcePath, targetPath, userIdOrInfo, userType, encryptionSecret) {
   return handleFsError(
       async () => {
         // 检查源路径和目标路径是否相同
@@ -2265,7 +2326,7 @@ export async function handleCrossStorageCopy(db, sourcePath, targetPath, userId,
         }
 
         // 查找源路径的挂载点
-        const sourceMountResult = await findMountPointByPath(db, sourcePath, userId, userType);
+        const sourceMountResult = await findMountPointByPath(db, sourcePath, userIdOrInfo, userType);
 
         // 处理错误情况
         if (sourceMountResult.error) {
@@ -2273,7 +2334,7 @@ export async function handleCrossStorageCopy(db, sourcePath, targetPath, userId,
         }
 
         // 查找目标路径的挂载点
-        const targetMountResult = await findMountPointByPath(db, targetPath, userId, userType);
+        const targetMountResult = await findMountPointByPath(db, targetPath, userIdOrInfo, userType);
 
         // 处理错误情况
         if (targetMountResult.error) {

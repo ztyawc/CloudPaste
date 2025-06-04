@@ -27,6 +27,7 @@ import { findMountPointByPath } from "../webdav/utils/webdavUtils.js";
 import { generatePresignedPutUrl, buildS3Url } from "../utils/s3Utils.js";
 import { directoryCacheManager, clearCache } from "../utils/DirectoryCache.js";
 import { handleInitMultipartUpload, handleUploadPart, handleCompleteMultipartUpload, handleAbortMultipartUpload } from "../controllers/multipartUploadController.js";
+import { checkPathPermissionForOperation } from "../services/apiKeyService.js";
 
 // 创建文件系统路由处理程序
 const fsRoutes = new Hono();
@@ -107,10 +108,10 @@ fsRoutes.get("/api/admin/fs/list", async (c) => {
 fsRoutes.get("/api/user/fs/list", async (c) => {
   const db = c.env.DB;
   const path = c.req.query("path") || "/";
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyInfo = c.get("apiKeyInfo");
 
   try {
-    const result = await listDirectory(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
+    const result = await listDirectory(db, path, apiKeyInfo, "apiKey", c.env.ENCRYPTION_SECRET);
     return c.json({
       code: ApiStatus.SUCCESS,
       message: "获取目录列表成功",
@@ -157,14 +158,14 @@ fsRoutes.get("/api/admin/fs/get", async (c) => {
 fsRoutes.get("/api/user/fs/get", async (c) => {
   const db = c.env.DB;
   const path = c.req.query("path");
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyInfo = c.get("apiKeyInfo");
 
   if (!path) {
     return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供文件路径"), ApiStatus.BAD_REQUEST);
   }
 
   try {
-    const result = await getFileInfo(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
+    const result = await getFileInfo(db, path, apiKeyInfo, "apiKey", c.env.ENCRYPTION_SECRET);
     return c.json({
       code: ApiStatus.SUCCESS,
       message: "获取文件信息成功",
@@ -254,7 +255,7 @@ fsRoutes.get("/api/admin/fs/preview", async (c) => {
 fsRoutes.get("/api/user/fs/download", async (c) => {
   const db = c.env.DB;
   const path = c.req.query("path");
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyInfo = c.get("apiKeyInfo");
 
   // 设置CORS头部
   setCorsHeaders(c);
@@ -265,7 +266,7 @@ fsRoutes.get("/api/user/fs/download", async (c) => {
 
   try {
     // 直接返回downloadFile的响应，文件内容会直接从服务器流式传输
-    const response = await downloadFile(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
+    const response = await downloadFile(db, path, apiKeyInfo, "apiKey", c.env.ENCRYPTION_SECRET);
 
     // 替换Access-Control-Allow-Origin头部为实际的Origin
     const origin = c.req.header("Origin");
@@ -289,7 +290,7 @@ fsRoutes.get("/api/user/fs/download", async (c) => {
 fsRoutes.get("/api/user/fs/preview", async (c) => {
   const db = c.env.DB;
   const path = c.req.query("path");
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyInfo = c.get("apiKeyInfo");
 
   // 设置CORS头部
   setCorsHeaders(c);
@@ -300,7 +301,7 @@ fsRoutes.get("/api/user/fs/preview", async (c) => {
 
   try {
     // 直接返回previewFile的响应，文件内容会直接从服务器流式传输
-    const response = await previewFile(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
+    const response = await previewFile(db, path, apiKeyInfo, "apiKey", c.env.ENCRYPTION_SECRET);
 
     // 替换Access-Control-Allow-Origin头部为实际的Origin
     const origin = c.req.header("Origin");
@@ -350,7 +351,7 @@ fsRoutes.post("/api/admin/fs/mkdir", async (c) => {
 // 创建目录 - API密钥用户版本
 fsRoutes.post("/api/user/fs/mkdir", async (c) => {
   const db = c.env.DB;
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyInfo = c.get("apiKeyInfo");
   const body = await c.req.json();
   const path = body.path;
 
@@ -358,8 +359,13 @@ fsRoutes.post("/api/user/fs/mkdir", async (c) => {
     return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供目录路径"), ApiStatus.BAD_REQUEST);
   }
 
+  // 检查操作权限
+  if (!checkPathPermissionForOperation(apiKeyInfo.basicPath, path)) {
+    return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "没有权限在此路径创建目录"), ApiStatus.FORBIDDEN);
+  }
+
   try {
-    await createDirectory(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
+    await createDirectory(db, path, apiKeyInfo, "apiKey", c.env.ENCRYPTION_SECRET);
     return c.json({
       code: ApiStatus.SUCCESS,
       message: "目录创建成功",
@@ -420,7 +426,7 @@ fsRoutes.post("/api/admin/fs/upload", async (c) => {
 // 上传文件 - API密钥用户版本
 fsRoutes.post("/api/user/fs/upload", async (c) => {
   const db = c.env.DB;
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyInfo = c.get("apiKeyInfo");
 
   try {
     const formData = await c.req.formData();
@@ -432,7 +438,12 @@ fsRoutes.post("/api/user/fs/upload", async (c) => {
       return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供文件和路径"), ApiStatus.BAD_REQUEST);
     }
 
-    const result = await uploadFile(db, path, file, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET, useMultipart);
+    // 检查操作权限
+    if (!checkPathPermissionForOperation(apiKeyInfo.basicPath, path)) {
+      return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "没有权限在此路径上传文件"), ApiStatus.FORBIDDEN);
+    }
+
+    const result = await uploadFile(db, path, file, apiKeyInfo, "apiKey", c.env.ENCRYPTION_SECRET, useMultipart);
 
     // 如果是分片上传，返回相关信息
     if (result.useMultipart) {
@@ -495,15 +506,20 @@ fsRoutes.delete("/api/admin/fs/remove", async (c) => {
 // 删除文件或目录 - API密钥用户版本
 fsRoutes.delete("/api/user/fs/remove", async (c) => {
   const db = c.env.DB;
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyInfo = c.get("apiKeyInfo");
   const path = c.req.query("path");
 
   if (!path) {
     return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供路径"), ApiStatus.BAD_REQUEST);
   }
 
+  // 检查操作权限
+  if (!checkPathPermissionForOperation(apiKeyInfo.basicPath, path)) {
+    return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "没有权限删除此路径的文件"), ApiStatus.FORBIDDEN);
+  }
+
   try {
-    await removeItem(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
+    await removeItem(db, path, apiKeyInfo, "apiKey", c.env.ENCRYPTION_SECRET);
 
     // 添加防缓存头部，确保前端能获取到最新状态
     c.header("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -555,7 +571,7 @@ fsRoutes.post("/api/admin/fs/batch-remove", async (c) => {
 // 批量删除文件或目录 - API密钥用户版本
 fsRoutes.post("/api/user/fs/batch-remove", async (c) => {
   const db = c.env.DB;
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyInfo = c.get("apiKeyInfo");
   const body = await c.req.json();
   const paths = body.paths;
 
@@ -563,8 +579,15 @@ fsRoutes.post("/api/user/fs/batch-remove", async (c) => {
     return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供有效的路径数组"), ApiStatus.BAD_REQUEST);
   }
 
+  // 检查所有路径的操作权限
+  for (const path of paths) {
+    if (!checkPathPermissionForOperation(apiKeyInfo.basicPath, path)) {
+      return c.json(createErrorResponse(ApiStatus.FORBIDDEN, `没有权限删除路径: ${path}`), ApiStatus.FORBIDDEN);
+    }
+  }
+
   try {
-    const result = await batchRemoveItems(db, paths, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
+    const result = await batchRemoveItems(db, paths, apiKeyInfo, "apiKey", c.env.ENCRYPTION_SECRET);
     return c.json({
       code: ApiStatus.SUCCESS,
       message: `批量删除完成，成功: ${result.success}，失败: ${result.failed.length}`,
@@ -611,7 +634,7 @@ fsRoutes.post("/api/admin/fs/rename", async (c) => {
 // 重命名文件或目录 - API密钥用户版本
 fsRoutes.post("/api/user/fs/rename", async (c) => {
   const db = c.env.DB;
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyInfo = c.get("apiKeyInfo");
   const body = await c.req.json();
   const oldPath = body.oldPath;
   const newPath = body.newPath;
@@ -620,8 +643,17 @@ fsRoutes.post("/api/user/fs/rename", async (c) => {
     return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供源路径和目标路径"), ApiStatus.BAD_REQUEST);
   }
 
+  // 检查源路径和目标路径的操作权限
+  if (!checkPathPermissionForOperation(apiKeyInfo.basicPath, oldPath)) {
+    return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "没有权限操作源路径"), ApiStatus.FORBIDDEN);
+  }
+
+  if (!checkPathPermissionForOperation(apiKeyInfo.basicPath, newPath)) {
+    return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "没有权限操作目标路径"), ApiStatus.FORBIDDEN);
+  }
+
   try {
-    await renameItem(db, oldPath, newPath, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
+    await renameItem(db, oldPath, newPath, apiKeyInfo, "apiKey", c.env.ENCRYPTION_SECRET);
     return c.json({
       code: ApiStatus.SUCCESS,
       message: "重命名成功",
@@ -1017,7 +1049,7 @@ fsRoutes.post("/api/user/fs/presign", apiKeyFileMiddleware, async (c) => {
   try {
     // 获取必要的上下文
     const db = c.env.DB;
-    const apiKeyId = c.get("apiKeyId");
+    const apiKeyInfo = c.get("apiKeyInfo");
     const encryptionSecret = c.env.ENCRYPTION_SECRET || "default-encryption-key";
 
     // 解析请求数据
@@ -1031,8 +1063,14 @@ fsRoutes.post("/api/user/fs/presign", apiKeyFileMiddleware, async (c) => {
       return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供上传路径和文件名"), ApiStatus.BAD_REQUEST);
     }
 
+    // 检查操作权限
+    const targetPath = path.endsWith("/") ? path + fileName : path + "/" + fileName;
+    if (!checkPathPermissionForOperation(apiKeyInfo.basicPath, targetPath)) {
+      return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "没有权限在此路径上传文件"), ApiStatus.FORBIDDEN);
+    }
+
     // 直接使用findMountPointByPath而不是getFileInfo来获取挂载点信息
-    const mountResult = await findMountPointByPath(db, path, apiKeyId, "apiKey");
+    const mountResult = await findMountPointByPath(db, path, apiKeyInfo, "apiKey");
 
     // 处理错误情况
     if (mountResult.error) {
@@ -1052,8 +1090,7 @@ fsRoutes.post("/api/user/fs/presign", apiKeyFileMiddleware, async (c) => {
       return c.json(createErrorResponse(ApiStatus.NOT_FOUND, "未找到存储配置"), ApiStatus.NOT_FOUND);
     }
 
-    // 构建完整的目标路径
-    const targetPath = path.endsWith("/") ? path + fileName : path + "/" + fileName;
+    // 构建完整的目标路径（已在权限检查时定义）
 
     // 计算文件相对于挂载点的路径
     let relativePathInMount;
@@ -1210,7 +1247,7 @@ fsRoutes.post("/api/user/fs/presign/commit", apiKeyFileMiddleware, async (c) => 
   try {
     // 获取必要的上下文
     const db = c.env.DB;
-    const apiKeyId = c.get("apiKeyId");
+    const apiKeyInfo = c.get("apiKeyInfo");
 
     // 解析请求数据
     const body = await c.req.json();
@@ -1226,6 +1263,11 @@ fsRoutes.post("/api/user/fs/presign/commit", apiKeyFileMiddleware, async (c) => 
 
     if (!fileId || !s3Path || !s3ConfigId || !targetPath) {
       return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供完整的上传信息"), ApiStatus.BAD_REQUEST);
+    }
+
+    // 检查操作权限
+    if (!checkPathPermissionForOperation(apiKeyInfo.basicPath, targetPath)) {
+      return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "没有权限在此路径提交上传"), ApiStatus.FORBIDDEN);
     }
 
     // 获取S3配置
@@ -1262,7 +1304,7 @@ fsRoutes.post("/api/user/fs/presign/commit", apiKeyFileMiddleware, async (c) => 
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
         )
-        .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, `apikey:${apiKeyId}`, now, now)
+        .bind(fileId, fileName, s3Path, s3Url, contentType, fileSize, s3ConfigId, fileSlug, etag, `apikey:${apiKeyInfo.id}`, now, now)
         .run();
 
     // 提取父路径
@@ -1331,7 +1373,7 @@ fsRoutes.get("/api/admin/fs/file-link", async (c) => {
 fsRoutes.get("/api/user/fs/file-link", async (c) => {
   const db = c.env.DB;
   const path = c.req.query("path");
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyInfo = c.get("apiKeyInfo");
   const expiresIn = parseInt(c.req.query("expires_in") || "604800"); // 默认7天
   const forceDownload = c.req.query("force_download") === "true";
 
@@ -1340,7 +1382,7 @@ fsRoutes.get("/api/user/fs/file-link", async (c) => {
   }
 
   try {
-    const result = await getFilePresignedUrl(db, path, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET, expiresIn, forceDownload);
+    const result = await getFilePresignedUrl(db, path, apiKeyInfo, "apiKey", c.env.ENCRYPTION_SECRET, expiresIn, forceDownload);
     return c.json({
       code: ApiStatus.SUCCESS,
       message: "获取文件直链成功",
@@ -1401,7 +1443,7 @@ fsRoutes.post("/api/admin/fs/update", authMiddleware, async (c) => {
 // 更新文件内容 - API密钥用户版本
 fsRoutes.post("/api/user/fs/update", apiKeyFileMiddleware, async (c) => {
   const db = c.env.DB;
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyInfo = c.get("apiKeyInfo");
 
   try {
     // 解析请求体
@@ -1417,8 +1459,13 @@ fsRoutes.post("/api/user/fs/update", apiKeyFileMiddleware, async (c) => {
       return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "不能更新目录，请提供有效的文件路径"), ApiStatus.BAD_REQUEST);
     }
 
+    // 检查操作权限
+    if (!checkPathPermissionForOperation(apiKeyInfo.basicPath, path)) {
+      return c.json(createErrorResponse(ApiStatus.FORBIDDEN, "没有权限更新此路径的文件"), ApiStatus.FORBIDDEN);
+    }
+
     // 调用updateFile函数更新文件内容
-    const result = await updateFile(db, path, content, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET);
+    const result = await updateFile(db, path, content, apiKeyInfo, "apiKey", c.env.ENCRYPTION_SECRET);
 
     return c.json({
       code: ApiStatus.SUCCESS,
@@ -1476,11 +1523,28 @@ fsRoutes.post("/api/admin/fs/batch-copy", authMiddleware, async (c) => {
       });
     }
 
+    // 根据结果判断整体是否成功
+    const hasFailures = result.failed.length > 0;
+    const hasSuccessOrSkipped = result.success > 0 || result.skipped > 0;
+
+    // 如果有失败且没有任何成功或跳过的项目，则认为完全失败
+    const overallSuccess = hasSuccessOrSkipped;
+
+    // 生成合适的消息
+    let message;
+    if (hasFailures && hasSuccessOrSkipped) {
+      message = `批量复制部分完成，成功: ${result.success}，跳过: ${result.skipped}，失败: ${result.failed.length}`;
+    } else if (hasFailures) {
+      message = `批量复制失败，成功: ${result.success}，跳过: ${result.skipped}，失败: ${result.failed.length}`;
+    } else {
+      message = `批量复制完成，成功: ${result.success}，跳过: ${result.skipped}，失败: ${result.failed.length}`;
+    }
+
     return c.json({
-      code: ApiStatus.SUCCESS,
-      message: `批量复制完成，成功: ${result.success}，跳过: ${result.skipped}，失败: ${result.failed.length}`,
+      code: overallSuccess ? ApiStatus.SUCCESS : ApiStatus.ACCEPTED,
+      message: message,
       data: result,
-      success: true,
+      success: overallSuccess,
     });
   } catch (error) {
     console.error("批量复制错误:", error);
@@ -1494,7 +1558,7 @@ fsRoutes.post("/api/admin/fs/batch-copy", authMiddleware, async (c) => {
 // 批量复制文件或目录 - API密钥用户版本
 fsRoutes.post("/api/user/fs/batch-copy", apiKeyFileMiddleware, async (c) => {
   const db = c.env.DB;
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyInfo = c.get("apiKeyInfo");
   const body = await c.req.json();
   const items = body.items;
   const skipExisting = body.skipExisting !== false; // 默认为true
@@ -1503,8 +1567,18 @@ fsRoutes.post("/api/user/fs/batch-copy", apiKeyFileMiddleware, async (c) => {
     return c.json(createErrorResponse(ApiStatus.BAD_REQUEST, "请提供有效的复制项数组"), ApiStatus.BAD_REQUEST);
   }
 
+  // 检查所有源路径和目标路径的操作权限
+  for (const item of items) {
+    if (!checkPathPermissionForOperation(apiKeyInfo.basicPath, item.sourcePath)) {
+      return c.json(createErrorResponse(ApiStatus.FORBIDDEN, `没有权限访问源路径: ${item.sourcePath}`), ApiStatus.FORBIDDEN);
+    }
+    if (!checkPathPermissionForOperation(apiKeyInfo.basicPath, item.targetPath)) {
+      return c.json(createErrorResponse(ApiStatus.FORBIDDEN, `没有权限访问目标路径: ${item.targetPath}`), ApiStatus.FORBIDDEN);
+    }
+  }
+
   try {
-    const result = await batchCopyItems(db, items, apiKeyId, "apiKey", c.env.ENCRYPTION_SECRET, skipExisting);
+    const result = await batchCopyItems(db, items, apiKeyInfo, "apiKey", c.env.ENCRYPTION_SECRET, skipExisting);
 
     // 检查是否有跨存储复制操作
     if (result.hasCrossStorageOperations) {
@@ -1527,11 +1601,28 @@ fsRoutes.post("/api/user/fs/batch-copy", apiKeyFileMiddleware, async (c) => {
       });
     }
 
+    // 根据结果判断整体是否成功
+    const hasFailures = result.failed.length > 0;
+    const hasSuccessOrSkipped = result.success > 0 || result.skipped > 0;
+
+    // 如果有失败且没有任何成功或跳过的项目，则认为完全失败
+    const overallSuccess = hasSuccessOrSkipped;
+
+    // 生成合适的消息
+    let message;
+    if (hasFailures && hasSuccessOrSkipped) {
+      message = `批量复制部分完成，成功: ${result.success}，跳过: ${result.skipped}，失败: ${result.failed.length}`;
+    } else if (hasFailures) {
+      message = `批量复制失败，成功: ${result.success}，跳过: ${result.skipped}，失败: ${result.failed.length}`;
+    } else {
+      message = `批量复制完成，成功: ${result.success}，跳过: ${result.skipped}，失败: ${result.failed.length}`;
+    }
+
     return c.json({
-      code: ApiStatus.SUCCESS,
-      message: `批量复制完成，成功: ${result.success}，跳过: ${result.skipped}，失败: ${result.failed.length}`,
+      code: overallSuccess ? ApiStatus.SUCCESS : ApiStatus.ACCEPTED,
+      message: message,
       data: result,
-      success: true,
+      success: overallSuccess,
     });
   } catch (error) {
     console.error("批量复制错误:", error);
@@ -1610,11 +1701,28 @@ fsRoutes.post("/api/admin/fs/batch-copy-commit", authMiddleware, async (c) => {
       // 缓存清理失败不应影响整体操作
     }
 
+    // 根据结果判断整体是否成功
+    const hasFailures = results.failed.length > 0;
+    const hasSuccess = results.success.length > 0;
+
+    // 如果有失败且没有任何成功的项目，则认为完全失败
+    const overallSuccess = hasSuccess;
+
+    // 生成合适的消息
+    let message;
+    if (hasFailures && hasSuccess) {
+      message = `批量复制部分完成，成功: ${results.success.length}，失败: ${results.failed.length}`;
+    } else if (hasFailures) {
+      message = `批量复制失败，成功: ${results.success.length}，失败: ${results.failed.length}`;
+    } else {
+      message = `批量复制完成，成功: ${results.success.length}，失败: ${results.failed.length}`;
+    }
+
     return c.json({
-      code: ApiStatus.SUCCESS,
-      message: `批量复制完成，成功: ${results.success.length}，失败: ${results.failed.length}`,
+      code: overallSuccess ? ApiStatus.SUCCESS : ApiStatus.ACCEPTED,
+      message: message,
       data: results,
-      success: true,
+      success: overallSuccess,
     });
   } catch (error) {
     console.error("提交批量复制完成错误:", error);
@@ -1628,7 +1736,7 @@ fsRoutes.post("/api/admin/fs/batch-copy-commit", authMiddleware, async (c) => {
 // 提交批量跨存储复制完成 - API密钥用户版本
 fsRoutes.post("/api/user/fs/batch-copy-commit", apiKeyFileMiddleware, async (c) => {
   const db = c.env.DB;
-  const apiKeyId = c.get("apiKeyId");
+  const apiKeyInfo = c.get("apiKeyInfo");
   const body = await c.req.json();
   const { targetMountId, files } = body;
 
@@ -1693,11 +1801,28 @@ fsRoutes.post("/api/user/fs/batch-copy-commit", apiKeyFileMiddleware, async (c) 
       // 缓存清理失败不应影响整体操作
     }
 
+    // 根据结果判断整体是否成功
+    const hasFailures = results.failed.length > 0;
+    const hasSuccess = results.success.length > 0;
+
+    // 如果有失败且没有任何成功的项目，则认为完全失败
+    const overallSuccess = hasSuccess;
+
+    // 生成合适的消息
+    let message;
+    if (hasFailures && hasSuccess) {
+      message = `批量复制部分完成，成功: ${results.success.length}，失败: ${results.failed.length}`;
+    } else if (hasFailures) {
+      message = `批量复制失败，成功: ${results.success.length}，失败: ${results.failed.length}`;
+    } else {
+      message = `批量复制完成，成功: ${results.success.length}，失败: ${results.failed.length}`;
+    }
+
     return c.json({
-      code: ApiStatus.SUCCESS,
-      message: `批量复制完成，成功: ${results.success.length}，失败: ${results.failed.length}`,
+      code: overallSuccess ? ApiStatus.SUCCESS : ApiStatus.ACCEPTED,
+      message: message,
       data: results,
-      success: true,
+      success: overallSuccess,
     });
   } catch (error) {
     console.error("提交批量复制完成错误:", error);

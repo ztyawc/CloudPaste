@@ -15,15 +15,15 @@ import { getLocalTimeString } from "../utils/common.js";
  * 获取S3资源（挂载点、配置、客户端）
  * @param {D1Database} db - D1数据库实例
  * @param {string} path - 文件路径
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
  * @returns {Promise<Object>} 包含mount、s3Config和s3Client的对象
  * @throws {HTTPException} 如果获取资源过程中出错
  */
-async function getS3Resources(db, path, userId, userType, encryptionSecret) {
+async function getS3Resources(db, path, userIdOrInfo, userType, encryptionSecret) {
   // 查找挂载点
-  const mountResult = await findMountPointByPath(db, path, userId, userType);
+  const mountResult = await findMountPointByPath(db, path, userIdOrInfo, userType);
 
   // 处理错误情况
   if (mountResult.error) {
@@ -111,17 +111,17 @@ async function handleMultipartError(fn, operationName, defaultErrorMessage) {
  * @param {string} path - 文件路径
  * @param {string} contentType - 文件MIME类型
  * @param {number} fileSize - 文件大小（可选）
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
  * @param {string} filename - 文件名（可选）
  * @returns {Promise<Object>} 包含uploadId和其他必要信息的上传会话
  */
-export async function initializeMultipartUpload(db, path, contentType, fileSize, userId, userType, encryptionSecret, filename) {
+export async function initializeMultipartUpload(db, path, contentType, fileSize, userIdOrInfo, userType, encryptionSecret, filename) {
   return handleMultipartError(
       async () => {
         // 获取S3资源
-        const { mount, subPath, s3Config, s3Client } = await getS3Resources(db, path, userId, userType, encryptionSecret);
+        const { mount, subPath, s3Config, s3Client } = await getS3Resources(db, path, userIdOrInfo, userType, encryptionSecret);
 
         // 规范化文件路径
         const s3SubPath = normalizeFilePath(subPath, s3Config, path, filename);
@@ -172,17 +172,17 @@ export async function initializeMultipartUpload(db, path, contentType, fileSize,
  * @param {string} uploadId - 上传ID
  * @param {number} partNumber - 分片编号（从1开始）
  * @param {ArrayBuffer} partData - 分片数据
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
  * @param {string} s3Key - S3对象键值，用于确保与初始化阶段一致（可选）
  * @returns {Promise<Object>} 包含ETag的响应对象
  */
-export async function uploadPart(db, path, uploadId, partNumber, partData, userId, userType, encryptionSecret, s3Key) {
+export async function uploadPart(db, path, uploadId, partNumber, partData, userIdOrInfo, userType, encryptionSecret, s3Key) {
   return handleMultipartError(
       async () => {
         // 获取S3资源
-        const { mount, subPath, s3Config, s3Client } = await getS3Resources(db, path, userId, userType, encryptionSecret);
+        const { mount, subPath, s3Config, s3Client } = await getS3Resources(db, path, userIdOrInfo, userType, encryptionSecret);
 
         // 规范化文件路径 - 如果提供了s3Key，直接使用，否则重新计算
         const s3SubPath = s3Key || normalizeFilePath(subPath, s3Config, path);
@@ -218,7 +218,7 @@ export async function uploadPart(db, path, uploadId, partNumber, partData, userI
  * @param {string} path - 文件路径
  * @param {string} uploadId - 上传ID
  * @param {Array<{partNumber: number, etag: string}>} parts - 已上传分片的信息
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
  * @param {string} s3Key - S3对象键值，用于确保与初始化阶段一致（可选）
@@ -232,7 +232,7 @@ export async function completeMultipartUpload(
     path,
     uploadId,
     parts,
-    userId,
+    userIdOrInfo,
     userType,
     encryptionSecret,
     s3Key,
@@ -243,7 +243,7 @@ export async function completeMultipartUpload(
   return handleMultipartError(
       async () => {
         // 获取S3资源
-        const { mount, subPath, s3Config, s3Client } = await getS3Resources(db, path, userId, userType, encryptionSecret);
+        const { mount, subPath, s3Config, s3Client } = await getS3Resources(db, path, userIdOrInfo, userType, encryptionSecret);
 
         // 规范化文件路径 - 如果提供了s3Key，直接使用，否则重新计算
         const s3SubPath = s3Key || normalizeFilePath(subPath, s3Config, path);
@@ -340,7 +340,20 @@ export async function completeMultipartUpload(
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `
               )
-              .bind(fileId, fileName, s3SubPath, s3Url, contentType, fileSize, s3Config.id, fileSlug, completeResponse.ETag, `${userType}:${userId}`, now, now)
+              .bind(
+                  fileId,
+                  fileName,
+                  s3SubPath,
+                  s3Url,
+                  contentType,
+                  fileSize,
+                  s3Config.id,
+                  fileSlug,
+                  completeResponse.ETag,
+                  `${userType}:${userType === "apiKey" ? userIdOrInfo.id : userIdOrInfo}`,
+                  now,
+                  now
+              )
               .run();
         } else {
           console.log(`分片上传完成但跳过数据库记录 (路径: ${path})`);
@@ -403,13 +416,13 @@ export async function completeMultipartUpload(
  * @param {D1Database} db - D1数据库实例
  * @param {string} path - 文件路径
  * @param {string} uploadId - 上传ID
- * @param {string} userId - 用户ID
+ * @param {string|Object} userIdOrInfo - 用户ID（管理员）或API密钥信息对象（API密钥用户）
  * @param {string} userType - 用户类型 (admin 或 apiKey)
  * @param {string} encryptionSecret - 加密密钥
  * @param {string} s3Key - S3对象键值，用于确保与初始化阶段一致（可选）
  * @returns {Promise<Object>} 中止上传的响应
  */
-export async function abortMultipartUpload(db, path, uploadId, userId, userType, encryptionSecret, s3Key) {
+export async function abortMultipartUpload(db, path, uploadId, userIdOrInfo, userType, encryptionSecret, s3Key) {
   let s3Client = null;
   let s3Config = null;
   let s3SubPath = null;
@@ -418,7 +431,7 @@ export async function abortMultipartUpload(db, path, uploadId, userId, userType,
 
   try {
     // 获取S3资源
-    const resources = await getS3Resources(db, path, userId, userType, encryptionSecret);
+    const resources = await getS3Resources(db, path, userIdOrInfo, userType, encryptionSecret);
     s3Client = resources.s3Client;
     s3Config = resources.s3Config;
     bucketName = s3Config.bucket_name;
