@@ -4,7 +4,6 @@
 
 import { HTTPException } from "hono/http-exception";
 import { ApiStatus, DbTables } from "../constants/index.js";
-import { getLocalTimeString } from "../utils/common.js";
 import { checkAndDeleteExpiredApiKey } from "../services/apiKeyService.js";
 
 /**
@@ -48,10 +47,10 @@ export const apiKeyTextMiddleware = async (c, next) => {
   await db
       .prepare(
           `UPDATE ${DbTables.API_KEYS}
-       SET last_used = ?
+       SET last_used = CURRENT_TIMESTAMP
        WHERE id = ?`
       )
-      .bind(getLocalTimeString(), keyRecord.id)
+      .bind(keyRecord.id)
       .run();
 
   // 将API密钥ID和完整权限信息存入请求上下文
@@ -114,10 +113,10 @@ export const apiKeyFileMiddleware = async (c, next) => {
   await db
       .prepare(
           `UPDATE ${DbTables.API_KEYS}
-       SET last_used = ?
+       SET last_used = CURRENT_TIMESTAMP
        WHERE id = ?`
       )
-      .bind(getLocalTimeString(), keyRecord.id)
+      .bind(keyRecord.id)
       .run();
 
   // 将API密钥ID和完整权限信息存入请求上下文
@@ -180,10 +179,10 @@ export const apiKeyMountMiddleware = async (c, next) => {
   await db
       .prepare(
           `UPDATE ${DbTables.API_KEYS}
-       SET last_used = ?
+       SET last_used = CURRENT_TIMESTAMP
        WHERE id = ?`
       )
-      .bind(getLocalTimeString(), keyRecord.id)
+      .bind(keyRecord.id)
       .run();
 
   // 将API密钥ID和完整权限信息存入请求上下文
@@ -272,11 +271,11 @@ export const apiKeyMiddleware = async (c, next) => {
         .prepare(
             `
       UPDATE ${DbTables.API_KEYS}
-      SET last_used = ?
+      SET last_used = CURRENT_TIMESTAMP
       WHERE id = ?
     `
         )
-        .bind(getLocalTimeString(), keyRecord.id)
+        .bind(keyRecord.id)
         .run();
 
     // 将密钥信息添加到上下文中

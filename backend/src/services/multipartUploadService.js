@@ -9,7 +9,6 @@ import { createS3Client, buildS3Url } from "../utils/s3Utils.js";
 import { CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, ListPartsCommand } from "@aws-sdk/client-s3";
 import { generateFileId } from "../utils/common.js";
 import { directoryCacheManager, clearCache } from "../utils/DirectoryCache.js";
-import { getLocalTimeString } from "../utils/common.js";
 
 /**
  * 获取S3资源（挂载点、配置、客户端）
@@ -328,8 +327,7 @@ export async function completeMultipartUpload(
           // 生成slug（使用文件ID的前5位作为slug）
           const fileSlug = "M-" + fileId.substring(0, 5);
 
-          // 获取当前时间，使用与直接上传相同的方式
-          const now = getLocalTimeString();
+          // 获取当前时间，使用UTC时间
 
           // 记录文件信息到数据库
           await db
@@ -337,7 +335,7 @@ export async function completeMultipartUpload(
                   `
           INSERT INTO files (
             id, filename, storage_path, s3_url, mimetype, size, s3_config_id, slug, etag, created_by, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `
               )
               .bind(
@@ -350,9 +348,7 @@ export async function completeMultipartUpload(
                   s3Config.id,
                   fileSlug,
                   completeResponse.ETag,
-                  `${userType}:${userType === "apiKey" ? userIdOrInfo.id : userIdOrInfo}`,
-                  now,
-                  now
+                  `${userType}:${userType === "apiKey" ? userIdOrInfo.id : userIdOrInfo}`
               )
               .run();
         } else {

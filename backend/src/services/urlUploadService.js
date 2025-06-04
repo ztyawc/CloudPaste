@@ -4,7 +4,7 @@
  */
 
 import { DbTables } from "../constants/index.js";
-import { generateFileId, generateShortId, getLocalTimeString, getFileNameAndExt, getSafeFileName } from "../utils/common.js";
+import { generateFileId, generateShortId, getFileNameAndExt, getSafeFileName } from "../utils/common.js";
 import { buildS3Url, generatePresignedPutUrl } from "../utils/s3Utils.js";
 import { S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand } from "@aws-sdk/client-s3";
 import { createS3Client } from "../utils/s3Utils.js";
@@ -422,13 +422,13 @@ export async function prepareUrlUpload(db, s3ConfigId, metadata, createdBy, encr
       .prepare(
           `
       INSERT INTO ${DbTables.FILES} (
-        id, slug, filename, storage_path, s3_url, 
+        id, slug, filename, storage_path, s3_url,
         s3_config_id, mimetype, size, etag,
         created_by, created_at, updated_at, remark
       ) VALUES (
-        ?, ?, ?, ?, ?, 
+        ?, ?, ?, ?, ?,
         ?, ?, ?, ?,
-        ?, ?, ?, ?
+        ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?
       )
     `
       )
@@ -443,8 +443,6 @@ export async function prepareUrlUpload(db, s3ConfigId, metadata, createdBy, encr
           metadata.size || 0, // 初始大小可能为0或来自元数据
           null, // 初始ETag为null，在上传完成后更新
           createdBy,
-          getLocalTimeString(),
-          getLocalTimeString(),
           remark
       )
       .run();
@@ -635,22 +633,19 @@ export async function initializeMultipartUpload(db, url, s3ConfigId, metadata, c
       });
     }
 
-    // 记录当前日期时间
-    const now = getLocalTimeString();
-
     // 创建文件记录
     await db
         .prepare(
             `
         INSERT INTO ${DbTables.FILES} (
-          id, slug, filename, storage_path, s3_url, 
+          id, slug, filename, storage_path, s3_url,
           s3_config_id, mimetype, size, etag,
           created_by, created_at, updated_at, remark,
           password, expires_at, max_views
         ) VALUES (
-          ?, ?, ?, ?, ?, 
+          ?, ?, ?, ?, ?,
           ?, ?, ?, ?,
-          ?, ?, ?, ?,
+          ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?,
           ?, ?, ?
         )
       `
@@ -666,8 +661,6 @@ export async function initializeMultipartUpload(db, url, s3ConfigId, metadata, c
             totalSize, // 初始大小
             null, // 初始ETag为null，在上传完成后更新
             createdBy,
-            now,
-            now,
             remark,
             passwordHash,
             expiresAt,
@@ -678,8 +671,8 @@ export async function initializeMultipartUpload(db, url, s3ConfigId, metadata, c
     // 如果设置了密码，保存明文密码记录（用于分享）
     if (options.password) {
       await db
-          .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, ?, ?)`)
-          .bind(fileId, options.password, now, now)
+          .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+          .bind(fileId, options.password)
           .run();
     }
 
@@ -789,10 +782,10 @@ export async function completeMultipartUpload(db, fileId, uploadId, parts, encry
         .prepare(
             `
         UPDATE ${DbTables.FILES}
-        SET 
+        SET
           etag = ?,
           size = CASE WHEN ? > 0 THEN ? ELSE size END,
-          updated_at = ?
+          updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `
         )
@@ -800,7 +793,6 @@ export async function completeMultipartUpload(db, fileId, uploadId, parts, encry
             etag,
             totalSize > 0 ? 1 : 0, // 条件
             totalSize,
-            getLocalTimeString(),
             fileId
         )
         .run();

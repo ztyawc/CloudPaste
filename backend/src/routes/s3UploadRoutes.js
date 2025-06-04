@@ -1,6 +1,6 @@
 import { DbTables } from "../constants/index.js";
 import { ApiStatus } from "../constants/index.js";
-import { createErrorResponse, generateFileId, generateShortId, getSafeFileName, getFileNameAndExt, formatFileSize, getLocalTimeString } from "../utils/common.js";
+import { createErrorResponse, generateFileId, generateShortId, getSafeFileName, getFileNameAndExt, formatFileSize } from "../utils/common.js";
 import { getMimeType, getMimeTypeFromFilename, getFileExtension } from "../utils/fileUtils.js";
 import { generatePresignedPutUrl, buildS3Url, deleteFileFromS3, generatePresignedUrl, createS3Client } from "../utils/s3Utils.js";
 import { validateAdminToken } from "../services/adminService.js";
@@ -117,11 +117,11 @@ export function registerS3UploadRoutes(app) {
               .prepare(
                   `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = ?
+              SET last_used = CURRENT_TIMESTAMP
               WHERE id = ?
             `
               )
-              .bind(getLocalTimeString(), keyRecord.id)
+              .bind(keyRecord.id)
               .run();
         }
       }
@@ -311,13 +311,13 @@ export function registerS3UploadRoutes(app) {
           .prepare(
               `
           INSERT INTO ${DbTables.FILES} (
-            id, slug, filename, storage_path, s3_url, 
+            id, slug, filename, storage_path, s3_url,
             s3_config_id, mimetype, size, etag,
             created_by, created_at, updated_at
           ) VALUES (
-            ?, ?, ?, ?, ?, 
+            ?, ?, ?, ?, ?,
             ?, ?, ?, ?,
-            ?, ?, ?
+            ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
           )
         `
           )
@@ -331,9 +331,7 @@ export function registerS3UploadRoutes(app) {
               mimetype,
               0, // 初始大小为0，在上传完成后更新
               null, // 初始ETag为null，在上传完成后更新
-              authorizedBy === "admin" ? adminId : authorizedBy === "apikey" ? `apikey:${apiKeyId}` : null, // 使用与传统上传一致的格式标记API密钥用户
-              getLocalTimeString(), // 使用本地时间
-              getLocalTimeString() // 使用本地时间
+              authorizedBy === "admin" ? adminId : authorizedBy === "apikey" ? `apikey:${apiKeyId}` : null // 使用与传统上传一致的格式标记API密钥用户
           )
           .run();
 
@@ -408,11 +406,11 @@ export function registerS3UploadRoutes(app) {
               .prepare(
                   `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = ?
+              SET last_used = CURRENT_TIMESTAMP
               WHERE id = ?
             `
               )
-              .bind(getLocalTimeString(), keyRecord.id)
+              .bind(keyRecord.id)
               .run();
         }
       }
@@ -557,21 +555,20 @@ export function registerS3UploadRoutes(app) {
 
       // 更新ETag和创建者
       const creator = authorizedBy === "admin" ? adminId : `apikey:${apiKeyId}`;
-      const now = getLocalTimeString();
 
       // 更新文件记录
       await db
           .prepare(
               `
         UPDATE ${DbTables.FILES}
-        SET 
-          etag = ?, 
-          created_by = ?, 
+        SET
+          etag = ?,
+          created_by = ?,
           remark = ?,
           password = ?,
           expires_at = ?,
           max_views = ?,
-          updated_at = ?,
+          updated_at = CURRENT_TIMESTAMP,
           size = CASE WHEN ? IS NOT NULL THEN ? ELSE size END
         WHERE id = ?
       `
@@ -583,7 +580,6 @@ export function registerS3UploadRoutes(app) {
               passwordHash,
               expiresAt,
               maxViews,
-              now,
               fileSize !== null ? 1 : null, // 条件参数
               fileSize, // 文件大小值
               body.file_id
@@ -597,12 +593,12 @@ export function registerS3UploadRoutes(app) {
 
         if (passwordExists) {
           // 更新现有密码
-          await db.prepare(`UPDATE ${DbTables.FILE_PASSWORDS} SET plain_password = ?, updated_at = ? WHERE file_id = ?`).bind(body.password, now, body.file_id).run();
+          await db.prepare(`UPDATE ${DbTables.FILE_PASSWORDS} SET plain_password = ?, updated_at = CURRENT_TIMESTAMP WHERE file_id = ?`).bind(body.password, body.file_id).run();
         } else {
           // 插入新密码
           await db
-              .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, ?, ?)`)
-              .bind(body.file_id, body.password, now, now)
+              .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+              .bind(body.file_id, body.password)
               .run();
         }
       }
@@ -685,10 +681,10 @@ export function registerS3UploadRoutes(app) {
           await db
               .prepare(
                   `UPDATE ${DbTables.API_KEYS}
-               SET last_used = ?
+               SET last_used = CURRENT_TIMESTAMP
                WHERE id = ?`
               )
-              .bind(getLocalTimeString(), keyRecord.id)
+              .bind(keyRecord.id)
               .run();
         }
       }
@@ -737,10 +733,10 @@ export function registerS3UploadRoutes(app) {
             await db
                 .prepare(
                     `UPDATE ${DbTables.API_KEYS}
-                 SET last_used = ?
+                 SET last_used = CURRENT_TIMESTAMP
                  WHERE id = ?`
                 )
-                .bind(getLocalTimeString(), keyRecord.id)
+                .bind(keyRecord.id)
                 .run();
           }
         }
@@ -1103,19 +1099,18 @@ export function registerS3UploadRoutes(app) {
       }
 
       // 保存文件记录到数据库
-      const now = getLocalTimeString();
       await db
           .prepare(
               `INSERT INTO ${DbTables.FILES} (
-            id, slug, filename, storage_path, s3_url, 
+            id, slug, filename, storage_path, s3_url,
             s3_config_id, mimetype, size, etag,
-            created_by, created_at, updated_at, 
+            created_by, created_at, updated_at,
             remark, expires_at, max_views, use_proxy,
             password
           ) VALUES (
-            ?, ?, ?, ?, ?, 
+            ?, ?, ?, ?, ?,
             ?, ?, ?, ?,
-            ?, ?, ?,
+            ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
             ?, ?, ?, ?,
             ?
           )`
@@ -1131,8 +1126,6 @@ export function registerS3UploadRoutes(app) {
               fileSize,
               etag,
               authorizedBy === "admin" ? adminId : authorizedBy === "apikey" ? `apikey:${apiKeyId}` : null,
-              now,
-              now,
               remark,
               expiresAt,
               maxViews > 0 ? maxViews : null,
@@ -1143,7 +1136,10 @@ export function registerS3UploadRoutes(app) {
 
       // 如果设置了密码，保存明文密码记录
       if (password) {
-        await db.prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, ?, ?)`).bind(fileId, password, now, now).run();
+        await db
+            .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+            .bind(fileId, password)
+            .run();
       }
 
       // 清除与文件相关的缓存 - 使用统一的clearCache函数
@@ -1173,7 +1169,7 @@ export function registerS3UploadRoutes(app) {
           mimetype: contentType,
           size: fileSize,
           remark,
-          created_at: now,
+          created_at: new Date().toISOString(),
           requires_password: !!passwordHash,
           views: 0,
           max_views: maxViews > 0 ? maxViews : null,

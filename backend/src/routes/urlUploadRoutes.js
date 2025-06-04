@@ -4,7 +4,7 @@
  */
 import { DbTables } from "../constants/index.js";
 import { ApiStatus } from "../constants/index.js";
-import { createErrorResponse, getLocalTimeString, formatFileSize } from "../utils/common.js";
+import { createErrorResponse, formatFileSize } from "../utils/common.js";
 import { validateAdminToken } from "../services/adminService.js";
 import { checkAndDeleteExpiredApiKey } from "../services/apiKeyService.js";
 import {
@@ -140,11 +140,11 @@ export function registerUrlUploadRoutes(app) {
               .prepare(
                   `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = ?
+              SET last_used = CURRENT_TIMESTAMP
               WHERE id = ?
             `
               )
-              .bind(getLocalTimeString(), keyRecord.id)
+              .bind(keyRecord.id)
               .run();
         }
       }
@@ -290,11 +290,11 @@ export function registerUrlUploadRoutes(app) {
               .prepare(
                   `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = ?
+              SET last_used = CURRENT_TIMESTAMP
               WHERE id = ?
             `
               )
-              .bind(getLocalTimeString(), keyRecord.id)
+              .bind(keyRecord.id)
               .run();
         }
       }
@@ -459,19 +459,18 @@ export function registerUrlUploadRoutes(app) {
 
       // 更新ETag和创建者
       const creator = authorizedBy === "admin" ? adminId : `apikey:${apiKeyId}`;
-      const now = getLocalTimeString();
 
       // 构建SQL更新语句
       let updateSql = `
         UPDATE ${DbTables.FILES}
-        SET 
-          etag = ?, 
-          created_by = ?, 
+        SET
+          etag = ?,
+          created_by = ?,
           remark = ?,
           password = ?,
           expires_at = ?,
           max_views = ?,
-          updated_at = ?,
+          updated_at = CURRENT_TIMESTAMP,
           size = CASE WHEN ? IS NOT NULL THEN ? ELSE size END
       `;
 
@@ -490,7 +489,6 @@ export function registerUrlUploadRoutes(app) {
         passwordHash,
         expiresAt,
         maxViews,
-        now,
         fileSize !== null ? 1 : null, // 条件参数
         fileSize, // 文件大小值
       ];
@@ -516,12 +514,12 @@ export function registerUrlUploadRoutes(app) {
 
         if (passwordExists) {
           // 更新现有密码
-          await db.prepare(`UPDATE ${DbTables.FILE_PASSWORDS} SET plain_password = ?, updated_at = ? WHERE file_id = ?`).bind(body.password, now, body.file_id).run();
+          await db.prepare(`UPDATE ${DbTables.FILE_PASSWORDS} SET plain_password = ?, updated_at = CURRENT_TIMESTAMP WHERE file_id = ?`).bind(body.password, body.file_id).run();
         } else {
           // 插入新密码
           await db
-              .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, ?, ?)`)
-              .bind(body.file_id, body.password, now, now)
+              .prepare(`INSERT INTO ${DbTables.FILE_PASSWORDS} (file_id, plain_password, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+              .bind(body.file_id, body.password)
               .run();
         }
       }
@@ -614,11 +612,11 @@ export function registerUrlUploadRoutes(app) {
               .prepare(
                   `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = ?
+              SET last_used = CURRENT_TIMESTAMP
               WHERE id = ?
             `
               )
-              .bind(getLocalTimeString(), keyRecord.id)
+              .bind(keyRecord.id)
               .run();
         }
       }
@@ -772,11 +770,11 @@ export function registerUrlUploadRoutes(app) {
               .prepare(
                   `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = ?
+              SET last_used = CURRENT_TIMESTAMP
               WHERE id = ?
             `
               )
-              .bind(getLocalTimeString(), keyRecord.id)
+              .bind(keyRecord.id)
               .run();
         }
       }
@@ -908,11 +906,11 @@ export function registerUrlUploadRoutes(app) {
               .prepare(
                   `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = ?
+              SET last_used = CURRENT_TIMESTAMP
               WHERE id = ?
             `
               )
-              .bind(getLocalTimeString(), keyRecord.id)
+              .bind(keyRecord.id)
               .run();
         }
       }
@@ -1038,11 +1036,11 @@ export function registerUrlUploadRoutes(app) {
               .prepare(
                   `
               UPDATE ${DbTables.API_KEYS}
-              SET last_used = ?
+              SET last_used = CURRENT_TIMESTAMP
               WHERE id = ?
             `
               )
-              .bind(getLocalTimeString(), keyRecord.id)
+              .bind(keyRecord.id)
               .run();
         }
       }
