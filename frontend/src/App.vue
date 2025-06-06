@@ -396,7 +396,7 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <main class="flex-1 flex flex-col">
+    <main class="flex-1 flex flex-col pb-8">
       <router-view :dark-mode="isDarkMode" class="transition-opacity duration-300 flex-1 flex flex-col" :class="{ 'opacity-0': transitioning }" />
     </main>
 
