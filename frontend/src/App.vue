@@ -4,7 +4,6 @@ import { useRoute } from "vue-router";
 import EnvSwitcher from "./components/EnvSwitcher.vue";
 import LanguageSwitcher from "./components/LanguageSwitcher.vue";
 
-// 使用 Vue Router
 const route = useRoute();
 
 // 初始化主题模式状态
