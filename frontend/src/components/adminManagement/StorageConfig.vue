@@ -101,103 +101,118 @@ const addNewConfig = () => {
   showEditForm.value = false;
 };
 
+/**
+ * 测试结果处理器
+ */
+class TestResultProcessor {
+  constructor(result) {
+    this.result = result;
+  }
+
+  /**
+   * 计算测试状态
+   */
+  calculateStatus() {
+    const basicConnectSuccess = this.result.read?.success === true;
+    const writeSuccess = this.result.write?.success === true;
+    const corsSuccess = this.result.cors?.success === true;
+    const frontendSimSuccess = this.result.frontendSim?.success === true;
+
+    // 完全成功：读写权限都可用、CORS配置正确且前端模拟测试通过
+    const isFullSuccess = basicConnectSuccess && writeSuccess && corsSuccess && frontendSimSuccess;
+    // 部分成功：至少读权限可用
+    const isPartialSuccess = basicConnectSuccess && (!writeSuccess || !corsSuccess || !frontendSimSuccess);
+    // 整体成功状态：至少基础连接成功
+    const isSuccess = basicConnectSuccess;
+
+    return {
+      isFullSuccess,
+      isPartialSuccess,
+      isSuccess,
+    };
+  }
+
+  /**
+   * 生成状态消息
+   */
+  generateStatusMessage() {
+    const status = this.calculateStatus();
+
+    if (status.isFullSuccess) {
+      return "配置完全可用";
+    } else if (status.isPartialSuccess) {
+      return "配置部分可用";
+    } else {
+      return "配置不可用";
+    }
+  }
+
+  /**
+   * 生成简洁的状态消息
+   */
+  generateDetailsMessage() {
+    const details = [];
+
+    // 读权限状态 - 简洁显示
+    if (this.result.read?.success) {
+      details.push("✓ 读权限正常");
+    } else {
+      details.push("✗ 读权限失败");
+      if (this.result.read?.error) {
+        details.push(`  ${this.result.read.error.split("\n")[0]}`);
+      }
+    }
+
+    // 写权限状态 - 简洁显示
+    if (this.result.write?.success) {
+      details.push("✓ 写权限正常");
+    } else {
+      details.push("✗ 写权限失败");
+      if (this.result.write?.error) {
+        details.push(`  ${this.result.write.error.split("\n")[0]}`);
+      }
+    }
+
+    // CORS配置状态 - 简洁显示
+    if (this.result.cors?.success) {
+      details.push("✓ CORS配置正确");
+    } else {
+      details.push("✗ CORS配置有问题");
+      if (this.result.cors?.error) {
+        details.push(`  ${this.result.cors.error.split("\n")[0]}`);
+      }
+    }
+
+    // 前端模拟测试状态 - 简洁显示
+    if (this.result.frontendSim?.success) {
+      details.push("✓ 前端上传模拟成功");
+    } else {
+      details.push("✗ 前端上传模拟失败");
+      if (this.result.frontendSim?.error) {
+        details.push(`  ${this.result.frontendSim.error.split("\n")[0]}`);
+      }
+    }
+
+    return details.join("\n");
+  }
+}
+
 // 测试S3配置连接
 const testConnection = async (configId) => {
   try {
     testResults.value[configId] = { loading: true };
     const response = await api.storage.testS3Config(configId);
 
-    // 提取测试结果数据
-    const result = response.data?.result || {};
-
-    // 重新计算整体成功状态，基于读权限和前端模拟测试结果
-    const basicConnectSuccess = result.read?.success === true; // 基础连接成功
-    const frontendUploadSuccess = result.frontendSim?.success === true; // 前端上传模拟成功
-
-    // 要标记为完全成功，需要基础连接和前端模拟测试都成功
-    const isFullSuccess = basicConnectSuccess && frontendUploadSuccess;
-    // 部分成功：基础连接成功但前端模拟失败
-    const isPartialSuccess = basicConnectSuccess && !frontendUploadSuccess;
-    // 整体成功状态：至少基础连接成功
-    const isSuccess = basicConnectSuccess;
-
-    // 生成更精确的测试结果消息
-    let statusMessage = "";
-    if (isFullSuccess) {
-      statusMessage = "连接测试完全成功";
-    } else if (isPartialSuccess) {
-      statusMessage = "连接测试部分成功";
-    } else {
-      statusMessage = "连接测试失败";
-    }
-
-    let detailsMessage = "";
-
-    // 读取权限状态
-    if (result.read && result.read.success) {
-      detailsMessage += "✓ 读取权限正常";
-      if (typeof result.read.objectCount === "number") {
-        detailsMessage += ` (${result.read.objectCount} 个对象)`;
-      }
-    } else if (result.read) {
-      detailsMessage += "✗ 读取权限测试失败";
-      if (result.read.error) {
-        detailsMessage += `: ${result.read.error.split("\n")[0]}`;
-      }
-    }
-
-    // 写入权限状态
-    if (result.write) {
-      detailsMessage += detailsMessage ? "\n" : "";
-      if (result.write.success) {
-        detailsMessage += "✓ 写入权限正常";
-        if (result.write.cleaned) {
-          detailsMessage += " (测试文件已清理)";
-        }
-      } else {
-        detailsMessage += "✗ 写入权限测试失败";
-        if (result.write.error) {
-          detailsMessage += `: ${result.write.error.split("\n")[0]}`;
-        }
-      }
-    }
-
-    // 跨域CORS测试状态
-    if (result.cors) {
-      detailsMessage += detailsMessage ? "\n" : "";
-      if (result.cors.success) {
-        detailsMessage += "✓ 跨域CORS配置正确";
-        detailsMessage += " (跨域测试通过)";
-      } else {
-        detailsMessage += "✗ 跨域CORS配置有问题";
-        if (result.cors.error) {
-          detailsMessage += `: ${result.cors.error.split("\n")[0]}`;
-        }
-        detailsMessage += " (跨域测试失败)";
-      }
-    }
-
-    // 前端模拟测试状态
-    if (result.frontendSim) {
-      detailsMessage += detailsMessage ? "\n" : "";
-      if (result.frontendSim.success) {
-        detailsMessage += "✓ 前端上传模拟成功";
-        detailsMessage += " (配置可用于实际上传)";
-      } else {
-        detailsMessage += "✗ 前端上传模拟失败";
-        if (result.frontendSim.failedAt) {
-          detailsMessage += ` (${result.frontendSim.failedAt}阶段)`;
-        }
-        detailsMessage += " (配置可能不适用于前端直传)";
-      }
-    }
+    // 使用测试结果处理器
+    const processor = new TestResultProcessor(response.data?.result || {});
+    const status = processor.calculateStatus();
 
     testResults.value[configId] = {
-      success: isFullSuccess, // 只有当前端模拟测试也成功时才标记为完全成功
-      partialSuccess: isPartialSuccess, // 添加部分成功状态
-      message: statusMessage,
-      details: detailsMessage,
-      result: result, // 保存完整结果以便需要时展示
+      success: status.isFullSuccess,
+      partialSuccess: status.isPartialSuccess,
+      message: processor.generateStatusMessage(),
+      details: processor.generateDetailsMessage(),
+      result: response.data?.result || {},
       loading: false,
     };
   } catch (err) {
@@ -445,16 +460,6 @@ const handleSetDefaultConfig = async (configId) => {
                         {{ testResults[config.id].message }}
                       </div>
 
-                      <!-- 测试简要说明 -->
-                      <div v-if="testResults[config.id].result?.globalNote" class="mt-1 p-1 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs rounded">
-                        <div class="flex">
-                          <svg class="h-3.5 w-3.5 mr-1 mt-0.5 flex-shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <div>注意：完全成功要求前端上传模拟也通过，这才能保证实际使用正常</div>
-                        </div>
-                      </div>
-
                       <div v-if="testResults[config.id].details" class="mt-1 text-sm whitespace-pre-line text-gray-700 dark:text-gray-300">
                         {{ testResults[config.id].details }}
                       </div>
@@ -639,19 +644,6 @@ const handleSetDefaultConfig = async (configId) => {
             <div v-if="selectedTestResult.details" class="mt-1 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line">
               {{ selectedTestResult.details }}
             </div>
-
-            <!-- 添加前端上传重要性提示 -->
-            <div v-if="selectedTestResult.partialSuccess" class="mt-2 text-xs border-t border-amber-200 dark:border-amber-800 pt-2 text-amber-800 dark:text-amber-300">
-              <svg class="h-3.5 w-3.5 mr-1 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-              <span>虽然基本连接成功，但前端上传模拟测试失败，实际使用可能会有问题</span>
-            </div>
           </div>
 
           <!-- 折叠/展开控制 -->
@@ -668,13 +660,13 @@ const handleSetDefaultConfig = async (configId) => {
           </div>
 
           <div v-if="showDetailedResults" class="space-y-4">
-            <!-- 全局提示说明 -->
-            <div v-if="selectedTestResult.result?.globalNote" class="mb-3 p-2 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs">
+            <!-- 测试说明 -->
+            <div class="mb-3 p-2 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs">
               <div class="flex items-start">
                 <svg class="h-4 w-4 mr-1 mt-0.5 flex-shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <div>{{ selectedTestResult.result.globalNote }}</div>
+                <div>前端模拟测试是判断配置能否在实际前端环境中正常工作的关键指标</div>
               </div>
             </div>
 
@@ -934,34 +926,34 @@ const handleSetDefaultConfig = async (configId) => {
                 </div>
 
                 <!-- 显示步骤状态 -->
-                <div v-if="selectedTestResult.result?.frontendSim" class="pl-5 space-y-2 mt-2">
+                <div v-if="selectedTestResult.result?.frontendSim?.steps" class="pl-5 space-y-2 mt-2">
                   <!-- 步骤1: 获取预签名URL -->
                   <div class="bg-gray-100 dark:bg-gray-800 rounded p-1.5">
                     <div class="flex items-center">
                       <span
                           class="w-4 h-4 flex-shrink-0 mr-1.5 rounded-full flex items-center justify-center text-white text-xs"
-                          :class="selectedTestResult.result.frontendSim.step1?.success ? 'bg-green-500' : 'bg-red-500'"
+                          :class="selectedTestResult.result.frontendSim.steps.step1?.success ? 'bg-green-500' : 'bg-red-500'"
                       >
                         1
                       </span>
-                      <span class="font-medium">{{ selectedTestResult.result.frontendSim.step1?.name || "获取预签名URL" }}</span>
-                      <span class="ml-auto" :class="selectedTestResult.result.frontendSim.step1?.success ? 'text-green-500' : 'text-red-500'">
+                      <span class="font-medium">{{ selectedTestResult.result.frontendSim.steps.step1?.name || "获取预签名URL" }}</span>
+                      <span class="ml-auto" :class="selectedTestResult.result.frontendSim.steps.step1?.success ? 'text-green-500' : 'text-red-500'">
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path
                               stroke-linecap="round"
                               stroke-linejoin="round"
                               stroke-width="2"
-                              :d="selectedTestResult.result.frontendSim.step1?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
+                              :d="selectedTestResult.result.frontendSim.steps.step1?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
                           ></path>
                         </svg>
                       </span>
                     </div>
                     <!-- 步骤1详情 -->
-                    <div v-if="selectedTestResult.result.frontendSim.step1?.success" class="mt-1 text-xs pl-6">
-                      <div v-if="selectedTestResult.result.frontendSim.step1?.url" class="text-gray-500 dark:text-gray-400">
+                    <div v-if="selectedTestResult.result.frontendSim.steps.step1?.success" class="mt-1 text-xs pl-6">
+                      <div v-if="selectedTestResult.result.frontendSim.steps.step1?.presignedUrl" class="text-gray-500 dark:text-gray-400">
                         <span class="font-medium">URL:</span>
                         <span class="url-display inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap">
-                          {{ selectedTestResult.result.frontendSim.step1.url }}
+                          {{ selectedTestResult.result.frontendSim.steps.step1.presignedUrl }}
                         </span>
                         <button
                             @click="$event.currentTarget.previousElementSibling.classList.toggle('whitespace-nowrap')"
@@ -973,6 +965,9 @@ const handleSetDefaultConfig = async (configId) => {
                           <span>展开/收起</span>
                         </button>
                       </div>
+                      <div v-if="selectedTestResult.result.frontendSim.steps.step1?.duration" class="text-gray-500 dark:text-gray-400 mt-1">
+                        <span class="font-medium">耗时:</span> {{ selectedTestResult.result.frontendSim.steps.step1.duration }}ms
+                      </div>
                     </div>
                   </div>
 
@@ -982,92 +977,110 @@ const handleSetDefaultConfig = async (configId) => {
                       <span
                           class="w-4 h-4 flex-shrink-0 mr-1.5 rounded-full flex items-center justify-center text-white text-xs"
                           :class="
-                          selectedTestResult.result.frontendSim.step2?.success
+                          selectedTestResult.result.frontendSim.steps.step2?.success
                             ? 'bg-green-500'
-                            : selectedTestResult.result.frontendSim.step1?.success
+                            : selectedTestResult.result.frontendSim.steps.step1?.success
                             ? 'bg-red-500'
                             : 'bg-gray-400'
                         "
                       >
                         2
                       </span>
-                      <span class="font-medium">{{ selectedTestResult.result.frontendSim.step2?.name || "XHR文件上传" }}</span>
+                      <span class="font-medium">{{ selectedTestResult.result.frontendSim.steps.step2?.name || "模拟文件上传" }}</span>
                       <span
-                          v-if="selectedTestResult.result.frontendSim.step1?.success"
+                          v-if="selectedTestResult.result.frontendSim.steps.step1?.success"
                           class="ml-auto"
-                          :class="selectedTestResult.result.frontendSim.step2?.success ? 'text-green-500' : 'text-red-500'"
+                          :class="selectedTestResult.result.frontendSim.steps.step2?.success ? 'text-green-500' : 'text-red-500'"
                       >
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path
                               stroke-linecap="round"
                               stroke-linejoin="round"
                               stroke-width="2"
-                              :d="selectedTestResult.result.frontendSim.step2?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
+                              :d="selectedTestResult.result.frontendSim.steps.step2?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
                           ></path>
                         </svg>
                       </span>
                     </div>
                     <!-- 步骤2详情 -->
-                    <div v-if="selectedTestResult.result.frontendSim.step2?.success" class="mt-1 text-xs pl-6 grid grid-cols-2 gap-1">
+                    <div v-if="selectedTestResult.result.frontendSim.steps.step2?.success" class="mt-1 text-xs pl-6 grid grid-cols-2 gap-1">
                       <div class="text-gray-500 dark:text-gray-400">上传耗时:</div>
-                      <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.step2.duration }}ms</div>
+                      <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.steps.step2.duration }}ms</div>
 
                       <div class="text-gray-500 dark:text-gray-400">上传速度:</div>
-                      <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.step2.speed }}</div>
+                      <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.steps.step2.uploadSpeed }}</div>
+
+                      <div class="text-gray-500 dark:text-gray-400">状态码:</div>
+                      <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.steps.step2.statusCode }}</div>
 
                       <div class="text-gray-500 dark:text-gray-400">ETag:</div>
-                      <div class="text-gray-900 dark:text-gray-200 truncate" :title="selectedTestResult.result.frontendSim.step2.etag">
-                        {{ selectedTestResult.result.frontendSim.step2.etag }}
+                      <div class="text-gray-900 dark:text-gray-200 truncate" :title="selectedTestResult.result.frontendSim.steps.step2.etag">
+                        {{ selectedTestResult.result.frontendSim.steps.step2.etag || "未返回" }}
                       </div>
                     </div>
                     <!-- 上传错误 -->
-                    <div v-else-if="selectedTestResult.result.frontendSim.step1?.success" class="mt-1 text-xs pl-6 text-red-600 dark:text-red-400">
-                      <div v-if="selectedTestResult.result.frontendSim.step2?.status" class="font-medium">
-                        错误状态码: {{ selectedTestResult.result.frontendSim.step2.status }} {{ selectedTestResult.result.frontendSim.step2.statusText }}
+                    <div v-else-if="selectedTestResult.result.frontendSim.steps.step1?.success" class="mt-1 text-xs pl-6 text-red-600 dark:text-red-400">
+                      <div v-if="selectedTestResult.result.frontendSim.steps.step2?.statusCode" class="font-medium">
+                        错误状态码: {{ selectedTestResult.result.frontendSim.steps.step2.statusCode }} {{ selectedTestResult.result.frontendSim.steps.step2.statusText }}
                       </div>
-                      <div v-if="selectedTestResult.result.frontendSim.step2?.errorText" class="mt-0.5 bg-red-50 dark:bg-red-900/20 p-1 rounded max-h-16 overflow-auto">
-                        {{ selectedTestResult.result.frontendSim.step2.errorText }}
+                      <div v-if="selectedTestResult.result.frontendSim.steps.step2?.error" class="mt-0.5 bg-red-50 dark:bg-red-900/20 p-1 rounded max-h-16 overflow-auto">
+                        {{ selectedTestResult.result.frontendSim.steps.step2.error }}
                       </div>
                     </div>
                   </div>
 
-                  <!-- 步骤3: 元数据提交 -->
+                  <!-- 步骤3: 验证上传结果 -->
                   <div class="bg-gray-100 dark:bg-gray-800 rounded p-1.5">
                     <div class="flex items-center">
                       <span
                           class="w-4 h-4 flex-shrink-0 mr-1.5 rounded-full flex items-center justify-center text-white text-xs"
                           :class="
-                          selectedTestResult.result.frontendSim.step3?.success
+                          selectedTestResult.result.frontendSim.steps.step3?.success
                             ? 'bg-green-500'
-                            : selectedTestResult.result.frontendSim.step2?.success
+                            : selectedTestResult.result.frontendSim.steps.step2?.success
                             ? 'bg-red-500'
                             : 'bg-gray-400'
                         "
                       >
                         3
                       </span>
-                      <span class="font-medium">{{ selectedTestResult.result.frontendSim.step3?.name || "元数据提交" }}</span>
+                      <span class="font-medium">{{ selectedTestResult.result.frontendSim.steps.step3?.name || "验证上传结果" }}</span>
                       <span
-                          v-if="selectedTestResult.result.frontendSim.step2?.success"
+                          v-if="selectedTestResult.result.frontendSim.steps.step2?.success"
                           class="ml-auto"
-                          :class="selectedTestResult.result.frontendSim.step3?.success ? 'text-green-500' : 'text-red-500'"
+                          :class="selectedTestResult.result.frontendSim.steps.step3?.success ? 'text-green-500' : 'text-red-500'"
                       >
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path
                               stroke-linecap="round"
                               stroke-linejoin="round"
                               stroke-width="2"
-                              :d="selectedTestResult.result.frontendSim.step3?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
+                              :d="selectedTestResult.result.frontendSim.steps.step3?.success ? 'M5 13l4 4L19 7' : 'M6 18L18 6M6 6l12 12'"
                           ></path>
                         </svg>
                       </span>
                     </div>
                     <!-- 步骤3详情 -->
-                    <div
-                        v-if="selectedTestResult.result.frontendSim.step3?.success && selectedTestResult.result.frontendSim.step3?.note"
-                        class="mt-1 text-xs pl-6 text-gray-500 dark:text-gray-400"
-                    >
-                      {{ selectedTestResult.result.frontendSim.step3.note }}
+                    <div v-if="selectedTestResult.result.frontendSim.steps.step3?.success" class="mt-1 text-xs pl-6 grid grid-cols-2 gap-1">
+                      <div class="text-gray-500 dark:text-gray-400">验证耗时:</div>
+                      <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.steps.step3.duration }}ms</div>
+
+                      <div class="text-gray-500 dark:text-gray-400">文件大小:</div>
+                      <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.steps.step3.fileSize }} 字节</div>
+
+                      <div class="text-gray-500 dark:text-gray-400">内容类型:</div>
+                      <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.steps.step3.contentType }}</div>
+
+                      <div class="text-gray-500 dark:text-gray-400">文件清理:</div>
+                      <div :class="selectedTestResult.result.frontendSim.steps.step3.fileCleaned ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'">
+                        {{ selectedTestResult.result.frontendSim.steps.step3.fileCleaned ? "已清理" : "清理失败" }}
+                      </div>
+                    </div>
+                    <!-- 验证错误 -->
+                    <div v-else-if="selectedTestResult.result.frontendSim.steps.step2?.success" class="mt-1 text-xs pl-6 text-red-600 dark:text-red-400">
+                      <div v-if="selectedTestResult.result.frontendSim.steps.step3?.error" class="bg-red-50 dark:bg-red-900/20 p-1 rounded max-h-16 overflow-auto">
+                        {{ selectedTestResult.result.frontendSim.steps.step3.error }}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1081,19 +1094,16 @@ const handleSetDefaultConfig = async (configId) => {
                   </div>
                 </div>
 
-                <!-- 清理信息 -->
+                <!-- 总体测试信息 -->
                 <div v-if="selectedTestResult.result?.frontendSim?.success" class="mt-2 text-xs pl-5">
-                  <div class="flex items-center">
-                    <span class="text-gray-500 dark:text-gray-400 mr-1">测试文件清理:</span>
-                    <span :class="selectedTestResult.result.frontendSim.fileCleaned ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'">
-                      {{ selectedTestResult.result.frontendSim.fileCleaned ? "已清理" : "清理失败" }}
-                    </span>
-                  </div>
-                  <div
-                      v-if="!selectedTestResult.result.frontendSim.fileCleaned && selectedTestResult.result.frontendSim.cleanError"
-                      class="mt-0.5 text-yellow-600 dark:text-yellow-400"
-                  >
-                    清理错误: {{ selectedTestResult.result.frontendSim.cleanError }}
+                  <div class="grid grid-cols-2 gap-1">
+                    <div class="text-gray-500 dark:text-gray-400">总耗时:</div>
+                    <div class="text-gray-900 dark:text-gray-200">{{ selectedTestResult.result.frontendSim.totalDuration }}ms</div>
+
+                    <div class="text-gray-500 dark:text-gray-400">测试文件:</div>
+                    <div class="text-gray-900 dark:text-gray-200 truncate" :title="selectedTestResult.result.frontendSim.testFile">
+                      {{ selectedTestResult.result.frontendSim.testFile }}
+                    </div>
                   </div>
                 </div>
               </div>
