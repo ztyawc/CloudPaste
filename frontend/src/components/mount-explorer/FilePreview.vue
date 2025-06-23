@@ -1323,7 +1323,8 @@ watch(
       } else {
         isTextLoading.value = false;
       }
-    }
+    },
+    { immediate: true }
 );
 
 // 监听暗色模式变化

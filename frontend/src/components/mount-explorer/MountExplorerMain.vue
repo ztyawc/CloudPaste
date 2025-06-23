@@ -197,10 +197,20 @@ const loading = ref(false);
 const message = ref(null);
 const viewMode = ref("list");
 
+// 请求去重状态
+const currentLoadingPath = ref(null);
+const isInitialized = ref(false);
+
 // 文件预览状态
 const previewFile = ref(null);
 const isPreviewMode = ref(false);
 const isPreviewLoading = ref(false);
+
+// 初始化状态控制
+const initializationState = ref({
+  isInitializing: false,
+  lastProcessedRoute: null,
+});
 
 // 弹窗状态
 const showUploadModal = ref(false);
@@ -213,6 +223,19 @@ const selectedItems = ref([]);
 
 // 计算属性
 const selectedCount = computed(() => selectedItems.value.length);
+
+// 统一的加载状态计算属性 - 决定何时需要加载目录内容
+const shouldLoadDirectory = computed(() => {
+  // 必须满足以下条件才能加载：
+  // 1. 权限信息已经加载完成
+  // 2. 当前路径已设置
+  // 3. 没有正在进行的加载请求
+  const hasPermissionInfo = typeof isAdmin.value === "boolean";
+  const hasPath = currentPath.value !== null;
+  const notLoading = currentLoadingPath.value === null;
+
+  return hasPermissionInfo && hasPath && notLoading;
+});
 
 // 从路由参数获取路径
 const getPathFromRoute = () => {
@@ -243,12 +266,22 @@ const initializePath = () => {
   currentPath.value = urlPath;
 };
 
-// 加载目录内容
-const loadDirectoryContents = async () => {
+// 加载目录内容 - 带去重机制
+const loadDirectoryContents = async (forcePath = null) => {
+  const targetPath = forcePath || currentPath.value;
+
+  // 请求去重：如果正在加载相同路径，则跳过
+  if (currentLoadingPath.value === targetPath) {
+    console.log("跳过重复请求:", targetPath);
+    return;
+  }
+
   try {
     loading.value = true;
+    currentLoadingPath.value = targetPath;
+
     const getDirectoryList = isAdmin.value ? api.fs.getAdminDirectoryList : api.fs.getUserDirectoryList;
-    const response = await getDirectoryList(currentPath.value);
+    const response = await getDirectoryList(targetPath);
 
     if (response.success) {
       directoryData.value = response.data;
@@ -260,6 +293,7 @@ const loadDirectoryContents = async () => {
     showMessage("error", t("mount.messages.getDirectoryContentFailedUnknown", { message: error.message || t("common.unknown") }));
   } finally {
     loading.value = false;
+    currentLoadingPath.value = null;
   }
 };
 
@@ -269,9 +303,8 @@ const navigateTo = (path) => {
     closePreview();
   }
 
-  currentPath.value = path;
+  // 只更新URL，让路由监听器处理实际的目录加载
   updateUrl(path);
-  loadDirectoryContents();
   window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
@@ -316,39 +349,11 @@ const handleViewModeChange = (mode) => {
 const handlePreview = async (item) => {
   if (!item || item.isDirectory) return;
 
-  try {
-    isPreviewLoading.value = true; // 开始加载预览内容
+  // 只更新URL，让路由监听器处理实际的文件加载
+  updateUrl(currentPath.value, item.name);
 
-    // 获取详细的文件信息
-    const getFileInfo = isAdmin.value ? api.fs.getAdminFileInfo : api.fs.getUserFileInfo;
-    const response = await getFileInfo(item.path);
-
-    if (!response.success) {
-      throw new Error(response.message || "获取文件信息失败");
-    }
-
-    // 使用获取到的详细文件信息
-    const fileInfo = response.data;
-
-    // 先设置预览模式和文件信息
-    isPreviewMode.value = true; // 切换到预览模式
-    previewFile.value = fileInfo;
-
-    // 更新 URL 以包含预览文件信息
-    updateUrl(currentPath.value, fileInfo.name);
-
-    // 滚动到顶部
-    window.scrollTo({ top: 0, behavior: "smooth" });
-
-    // 预览内容加载完成（文件信息已加载，具体内容由 FilePreview 组件异步加载）
-    isPreviewLoading.value = false;
-  } catch (error) {
-    console.error("预览文件错误:", error);
-    showMessage("error", t("mount.messages.previewLoadFailedUnknown", { message: error.message || t("common.unknown") }));
-    isPreviewMode.value = false; // 出错时不进入预览模式
-    previewFile.value = null;
-    isPreviewLoading.value = false;
-  }
+  // 滚动到顶部
+  window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
 const closePreview = () => {
@@ -619,13 +624,47 @@ const handlePreviewError = () => {
   showMessage("error", t("mount.messages.previewError"));
 };
 
-// 从 URL 初始化预览状态
-const initializePreviewFromUrl = async () => {
+// 统一的路由状态初始化逻辑
+const initializeFromRoute = async () => {
+  // 防止重复初始化
+  const currentRouteKey = `${route.path}?${new URLSearchParams(route.query).toString()}`;
+  if (initializationState.value.isInitializing || initializationState.value.lastProcessedRoute === currentRouteKey) {
+    return;
+  }
+
+  initializationState.value.isInitializing = true;
+  initializationState.value.lastProcessedRoute = currentRouteKey;
+
+  try {
+    // 1. 首先初始化路径
+    initializePath();
+
+    // 2. 判断是否为文件预览模式
+    if (route.query.preview) {
+      // 文件预览模式：直接加载文件信息，不需要加载目录
+      await initializeFilePreview();
+    } else {
+      // 目录浏览模式：加载目录内容
+      await loadDirectoryContents();
+    }
+  } catch (error) {
+    console.error("路由初始化失败:", error);
+    showMessage("error", t("mount.messages.initializationFailed", { message: error.message || t("common.unknown") }));
+  } finally {
+    initializationState.value.isInitializing = false;
+  }
+};
+
+// 初始化文件预览
+const initializeFilePreview = async () => {
   if (!route.query.preview) {
     return;
   }
 
   try {
+    // 开始加载预览内容
+    isPreviewLoading.value = true;
+
     // 构建完整的文件路径
     let filePath;
     if (currentPath.value === "/") {
@@ -646,7 +685,7 @@ const initializePreviewFromUrl = async () => {
 
       if (normalizedBasicPath !== "/" && normalizedFileDir !== normalizedBasicPath && !normalizedFileDir.startsWith(normalizedBasicPath + "/")) {
         console.warn("文件超出权限范围:", filePath);
-        updateUrl(currentPath.value);
+        navigateTo(basicPath);
         return;
       }
     }
@@ -659,19 +698,33 @@ const initializePreviewFromUrl = async () => {
       previewFile.value = response.data;
       isPreviewMode.value = true;
       console.log("文件预览初始化成功:", response.data.name);
+      // 文件信息加载完成，但具体内容由 FilePreview 组件异步加载
+      isPreviewLoading.value = false;
     } else {
       console.warn("无法加载预览文件:", response.message);
-      // 如果文件不存在，清除 URL 中的预览参数
-      updateUrl(currentPath.value);
+      // 如果文件不存在，重定向到目录
+      navigateTo(currentPath.value);
     }
   } catch (error) {
     console.error("初始化文件预览失败:", error);
-    // 如果出错，清除 URL 中的预览参数
-    updateUrl(currentPath.value);
+    // 如果出错，重定向到目录
+    navigateTo(currentPath.value);
+    isPreviewLoading.value = false;
   }
 };
 
-// 监听权限状态变化，当权限检查完成后再初始化
+// 统一的初始化和更新逻辑
+const performInitialization = async () => {
+  if (!shouldLoadDirectory.value) {
+    return;
+  }
+
+  // 使用新的统一初始化逻辑
+  await initializeFromRoute();
+  isInitialized.value = true;
+};
+
+// 监听权限状态变化
 watch(
     [isAdmin, apiKeyInfo],
     ([newIsAdmin, newApiKeyInfo], [oldIsAdmin, oldApiKeyInfo]) => {
@@ -680,46 +733,32 @@ watch(
       const hasChanged = newIsAdmin !== oldIsAdmin || JSON.stringify(newApiKeyInfo) !== JSON.stringify(oldApiKeyInfo);
 
       if (isFirstCall || hasChanged) {
-        initializePath();
-        loadDirectoryContents().then(() => {
-          // 检查是否需要初始化预览
-          if (route.query.preview) {
-            initializePreviewFromUrl();
-          }
-        });
+        isInitialized.value = false;
+        performInitialization();
       }
     },
     { immediate: true }
 );
 
-// 在权限信息稳定后，监听路由变化
+// 监听路由变化 - 统一处理路径和预览参数变化
 watch(
     () => [route.params.pathMatch, route.query.preview],
     ([newPathMatch, newPreviewFile], oldValues) => {
       // 处理第一次调用时oldValues为undefined的情况
       const [oldPathMatch, oldPreviewFile] = oldValues || [undefined, undefined];
 
-      // 确保权限信息已经加载（isAdmin为boolean，apiKeyInfo为null或object）
-      if (typeof isAdmin.value === "boolean") {
-        // 如果路径发生变化
-        if (newPathMatch !== oldPathMatch) {
-          initializePath();
-          loadDirectoryContents().then(() => {
-            // 路径变化后，检查是否需要初始化预览
-            if (newPreviewFile) {
-              initializePreviewFromUrl();
-            }
-          });
-        }
-        // 如果只是预览文件发生变化
-        else if (newPreviewFile !== oldPreviewFile) {
-          if (newPreviewFile) {
-            initializePreviewFromUrl();
-          } else {
-            // 清除预览状态
-            closePreview();
-          }
-        }
+      // 确保权限信息已经加载且组件已初始化
+      if (!shouldLoadDirectory.value || !isInitialized.value) {
+        return;
+      }
+
+      // 检查是否有实际变化
+      const pathChanged = newPathMatch !== oldPathMatch;
+      const previewChanged = newPreviewFile !== oldPreviewFile;
+
+      if (pathChanged || previewChanged) {
+        // 使用统一的初始化逻辑处理所有变化
+        initializeFromRoute();
       }
     },
     { immediate: false }
