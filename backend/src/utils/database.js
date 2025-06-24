@@ -117,6 +117,9 @@ export async function initDatabase(db) {
         is_public BOOLEAN DEFAULT 0,
         is_default BOOLEAN DEFAULT 0,
         total_storage_bytes BIGINT,
+        custom_host TEXT,
+        custom_host_signature BOOLEAN DEFAULT 0,
+        signature_expires_in INTEGER DEFAULT 3600,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         last_used DATETIME,
@@ -370,6 +373,43 @@ async function migrateDatabase(db, currentVersion, targetVersion) {
           // 不抛出错误，允许迁移继续进行
         }
         break;
+
+      case 6:
+        // 版本6：为S3_CONFIGS表添加自定义域名和签名时效相关字段
+        try {
+          console.log(`为${DbTables.S3_CONFIGS}表添加自定义域名相关字段...`);
+
+          // 检查字段是否已存在
+          const columnInfo = await db.prepare(`PRAGMA table_info(${DbTables.S3_CONFIGS})`).all();
+          const existingColumns = new Set(columnInfo.results.map((col) => col.name));
+
+          // 需要添加的字段
+          const fieldsToAdd = [
+            { name: "custom_host", sql: "custom_host TEXT" },
+            { name: "custom_host_signature", sql: "custom_host_signature BOOLEAN DEFAULT 0" },
+            { name: "signature_expires_in", sql: "signature_expires_in INTEGER DEFAULT 3600" },
+          ];
+
+          for (const field of fieldsToAdd) {
+            if (!existingColumns.has(field.name)) {
+              try {
+                await db.prepare(`ALTER TABLE ${DbTables.S3_CONFIGS} ADD COLUMN ${field.sql}`).run();
+                console.log(`成功添加${field.name}字段到${DbTables.S3_CONFIGS}表`);
+              } catch (alterError) {
+                console.error(`无法添加${field.name}字段到${DbTables.S3_CONFIGS}表:`, alterError);
+                console.log(`将继续执行迁移过程，但请手动检查${DbTables.S3_CONFIGS}表结构`);
+                // 不抛出错误，允许迁移继续进行
+              }
+            } else {
+              console.log(`${DbTables.S3_CONFIGS}表已存在${field.name}字段，跳过添加`);
+            }
+          }
+        } catch (error) {
+          console.error(`为${DbTables.S3_CONFIGS}表检查自定义域名字段时出错:`, error);
+          console.log(`将继续执行迁移过程，但请手动检查${DbTables.S3_CONFIGS}表结构`);
+          // 不抛出错误，允许迁移继续进行
+        }
+        break;
     }
 
     // 记录迁移历史
@@ -488,7 +528,7 @@ export async function checkAndInitDatabase(db) {
     }
 
     // 如果要添加新表或修改现有表，请递增目标版本，修改后启动时自动更新数据库
-    const targetVersion = 5; // 目标schema版本,每次修改表结构时递增
+    const targetVersion = 6; // 目标schema版本,每次修改表结构时递增
 
     if (currentVersion < targetVersion) {
       console.log(`需要更新数据库结构，当前版本:${currentVersion}，目标版本:${targetVersion}`);
